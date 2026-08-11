@@ -87,6 +87,7 @@ class MessageInGroupModel(models.Model):
     message = models.CharField(verbose_name="Сообщение", max_length=300, blank=True, null=True)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.user.email} {self.created_at}"
@@ -103,6 +104,7 @@ class MessageInTeacherChatModel(models.Model):
     from_teacher = models.BooleanField(verbose_name="От педагога", default=False)
     is_read = models.BooleanField(default=False)
     created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(blank=True, null=True)
 
     def __str__(self):
         return f"{self.user.email} {self.created_at}"
@@ -169,3 +171,13 @@ class AnnounceTypeLink(models.Model):
     class Meta:
         verbose_name = "Таблица связей тип-объявление"
         verbose_name_plural = "Таблица связей тип-объявление"
+
+class TeacherTeacherMetaLink(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    companion = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    status = models.CharField(max_length=20, choices=[('student', 'student'), ('teacher', 'teacher')], default='student')
+
+    class Meta:
+        verbose_name = "Системная информация по чатам препод-препод"
+        verbose_name_plural = "Системная информация по чатам препод-препод"

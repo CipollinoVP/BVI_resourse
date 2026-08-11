@@ -1,4 +1,7 @@
+from django.utils import timezone
+
 from django.shortcuts import render, get_object_or_404
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -7,13 +10,14 @@ from django.contrib.auth import get_user_model
 
 from schedule.utils import get_schedule_for_week
 from .models import GroupModel, ClassModel, GroupLinkModel, MessageInGroupModel, ClassTeacherLink, \
-    MessageInTeacherChatModel, AnnouncementInClass
+    MessageInTeacherChatModel, AnnouncementInClass, DeletedMessage, TeacherTeacherMetaLink
 
 
 CustomUser = get_user_model()
 
 #Преподские ручки
 PAGINATION_SIZE = 20
+PAGINATION_MESSENGER_SIZE = 50
 
 def get_info_about_users(group_local: GroupModel, group_global: ClassModel, type_group: str, user: CustomUser):
     chat_dict = {"uuid": group_local.id}
@@ -73,7 +77,7 @@ class GetClassInfoView(APIView):
     def get(self, request, class_uuid):
         user = request.user
         if user.user_type != "teacher":
-            Response({"error": "No access"}, status=status.HTTP_403_FORBIDDEN)
+            return Response({"error": "No access"}, status=status.HTTP_403_FORBIDDEN)
 
         class_group = get_object_or_404(ClassModel, id=class_uuid)
         data = {"name": class_group.name}
@@ -109,6 +113,280 @@ class GetClassInfoView(APIView):
         data["schedule"] = get_schedule_for_week(class_group)
 
         return Response({"data": data}, status=status.HTTP_200_OK)
+
+
+class GetChatInfo(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _get_chat(self, user, uuid):
+        chat = get_object_or_404(GroupModel, id=uuid)
+
+        if user.user_type != "teacher":
+            if not GroupLinkModel.objects.filter(group=chat, user=user).exists():
+                raise PermissionDenied()
+
+        return chat
+
+    def get(self, request, uuid):
+        user = request.user
+        chat = self._get_chat(request.user, uuid)
+        resp_dict = {
+            "name_chat": chat.get_group_name,
+            "meta": [
+                "UUID",
+                "text",
+                "arriver",
+                "sent_datetime",
+                "is_read"
+            ]
+        }
+        messages = (
+            MessageInGroupModel.objects
+            .filter(group=chat)
+            .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            .select_related("user")
+        )
+        if messages:
+            pagination_dict = {
+                "first": messages[-1].id,
+                "last": messages[0].id
+            }
+            check_query = MessageInGroupModel.objects.filter(
+                created_at__lt=messages[-1].created_at,
+                group=chat,
+            ).exists()
+            if check_query:
+                pagination_dict["has_next"] = True
+            else:
+                pagination_dict["has_next"] = False
+        else:
+            pagination_dict = {
+                "first": None,
+                "last": None,
+                "has_next": False,
+            }
+
+        messages_result = []
+        for message in messages:
+            message_res = [
+                message.id,
+                message.message,
+                message.user.chat_view if message.user is not user else "me",
+                message.created_at,
+                message.is_read,
+            ]
+            messages_result.append(message_res)
+
+        resp_dict["messages"] = messages_result
+        resp_dict["pagination"] = pagination_dict
+        return Response({"data": resp_dict}, status=status.HTTP_200_OK)
+
+
+    def post(self, request, uuid):
+        user = request.user
+        chat = self._get_chat(request.user, uuid)
+
+        text = self.request.data.get('text')
+        if not text:
+           return Response({"error": "No text"}, status=status.HTTP_400_BAD_REQUEST)
+        message = MessageInGroupModel.objects.create(
+            user=user,
+            message=text,
+            group=chat
+        )
+        data = {
+            "uuid": message.id,
+            "text": message.message
+        }
+        return Response({"data": data}, status=status.HTTP_201_CREATED)
+
+
+    def patch(self, request, uuid):
+        user = request.user
+        chat = self._get_chat(request.user, uuid)
+
+        uuid_changed = self.request.data.get('uuid')
+        text = self.request.data.get('text')
+        if not text:
+           return Response({"error": "No text"}, status=status.HTTP_400_BAD_REQUEST)
+        message = get_object_or_404(MessageInGroupModel, pk=uuid_changed, group=chat)
+
+        if message.user != user:
+            return Response({"error": "No access"}, status=status.HTTP_403_FORBIDDEN)
+
+        deleted_message = DeletedMessage.objects.create(
+            user=user,
+            message=message.message,
+            info_about=f"{message.created_at} {chat.get_group_name}",
+        )
+        message.message = text
+        message.updated_at = timezone.now()
+        message.save()
+
+        data = {
+            "uuid": message.id,
+            "text": message.message
+        }
+
+        return Response({"data": data}, status=status.HTTP_200_OK)
+
+
+    def delete(self, request, uuid):
+        user = request.user
+        chat = self._get_chat(request.user, uuid)
+
+        uuid_deleted = self.request.data.get('uuid')
+        message = get_object_or_404(MessageInGroupModel, pk=uuid_deleted, group=chat)
+
+        if user.user_type != "teacher":
+            if message.user != user:
+                return Response({"error": "No access"}, status=status.HTTP_403_FORBIDDEN)
+
+        deleted_message = DeletedMessage.objects.create(
+            user=user,
+            message=message.message,
+            info_about=f"{message.created_at} {chat.get_group_name}",
+        )
+        message.delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+class GetAdminPersonal(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _get_student(self, user, uuid):
+        student = get_object_or_404(CustomUser, id=uuid)
+
+        if user.user_type != "teacher":
+            raise PermissionDenied()
+
+        return student
+
+
+    def _get_is_user_teacher(self, user, student):
+        is_user_teacher = True
+        if student.user_type == 'teacher':
+            link = TeacherTeacherMetaLink.objects.filter(user=user, companion=student)
+            if not link.exists():
+                link = TeacherTeacherMetaLink.objects.create(
+                    user=user,
+                    companion=student,
+                    status='teacher'
+                )
+                link_reserve = TeacherTeacherMetaLink.objects.create(
+                    user=student,
+                    companion=user,
+                    status='student'
+                )
+            else:
+                link = link.first()
+
+            if link.status == "student":
+                is_user_teacher = False
+
+        return is_user_teacher
+
+
+    def get(self, request, uuid):
+        user = request.user
+        student = self._get_student(user, uuid)
+        is_user_teacher = self._get_is_user_teacher(user, student)
+        resp_dict = {
+            "name_chat": student.chat_view,
+            "meta": [
+                "UUID",
+                "text",
+                "arriver",
+                "sent_datetime",
+                "is_read"
+            ]
+        }
+        messages = []
+
+        if is_user_teacher:
+            messages = (
+                MessageInTeacherChatModel.objects
+                .filter(teacher=user, user=student)
+                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            )
+        else:
+            messages = (
+                MessageInTeacherChatModel.objects
+                .filter(teacher=student, user=user)
+                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            )
+
+        if messages:
+            pagination_dict = {
+                "first": messages[-1].id,
+                "last": messages[0].id
+            }
+            check_query = False
+            if is_user_teacher:
+                check_query = MessageInTeacherChatModel.objects.filter(
+                    created_at__lt=messages[-1].created_at,
+                    teacher=user, user=student,
+                ).exists()
+            else:
+                check_query = MessageInTeacherChatModel.objects.filter(
+                    created_at__lt=messages[-1].created_at,
+                    teacher=student, user=user,
+                ).exists()
+            if check_query:
+                pagination_dict["has_next"] = True
+            else:
+                pagination_dict["has_next"] = False
+        else:
+            pagination_dict = {
+                "first": None,
+                "last": None,
+                "has_next": False,
+            }
+
+        messages_result = []
+        if is_user_teacher:
+            for message in messages:
+                message_res = [
+                    message.id,
+                    message.message,
+                    "me" if message.from_teacher else "not_me",
+                    message.created_at,
+                    message.is_read,
+                ]
+                messages_result.append(message_res)
+        else:
+            for message in messages:
+                message_res = [
+                    message.id,
+                    message.message,
+                    "not_me" if message.from_teacher else "me",
+                    message.created_at,
+                    message.is_read,
+                ]
+                messages_result.append(message_res)
+
+        resp_dict["messages"] = messages_result
+        resp_dict["pagination"] = pagination_dict
+        return Response({"data": resp_dict}, status=status.HTTP_200_OK)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

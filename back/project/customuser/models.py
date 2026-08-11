@@ -23,6 +23,10 @@ class CustomUser(AbstractUser):
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']
 
+    @property
+    def chat_view(self):
+        return f"{self.surname} {self.name[0]}."
+
     def __str__(self):
         return self.email
 
