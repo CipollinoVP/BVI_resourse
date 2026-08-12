@@ -174,8 +174,8 @@ class AnnounceTypeLink(models.Model):
 
 class TeacherTeacherMetaLink(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
-    companion = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
+    user = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="TeacherLinkTeacher")
+    companion = models.ForeignKey(CustomUser, on_delete=models.CASCADE, related_name="TeacherLinkCompanion")
     status = models.CharField(max_length=20, choices=[('student', 'student'), ('teacher', 'teacher')], default='student')
 
     class Meta:

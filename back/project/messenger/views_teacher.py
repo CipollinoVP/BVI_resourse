@@ -1,3 +1,4 @@
+from django.core.paginator import Paginator
 from django.utils import timezone
 
 from django.shortcuts import render, get_object_or_404
@@ -257,10 +258,10 @@ class GetAdminPersonal(APIView):
     permission_classes = [IsAuthenticated]
 
     def _get_student(self, user, uuid):
-        student = get_object_or_404(CustomUser, id=uuid)
-
         if user.user_type != "teacher":
             raise PermissionDenied()
+
+        student = get_object_or_404(CustomUser, id=uuid)
 
         return student
 
@@ -268,8 +269,11 @@ class GetAdminPersonal(APIView):
     def _get_is_user_teacher(self, user, student):
         is_user_teacher = True
         if student.user_type == 'teacher':
-            link = TeacherTeacherMetaLink.objects.filter(user=user, companion=student)
-            if not link.exists():
+            link = TeacherTeacherMetaLink.objects.filter(
+                user=user,
+                companion=student
+            ).first()
+            if link is None:
                 link = TeacherTeacherMetaLink.objects.create(
                     user=user,
                     companion=student,
@@ -280,8 +284,6 @@ class GetAdminPersonal(APIView):
                     companion=user,
                     status='student'
                 )
-            else:
-                link = link.first()
 
             if link.status == "student":
                 is_user_teacher = False
@@ -293,6 +295,8 @@ class GetAdminPersonal(APIView):
         user = request.user
         student = self._get_student(user, uuid)
         is_user_teacher = self._get_is_user_teacher(user, student)
+        if not is_user_teacher:
+            user, student = student, user
         resp_dict = {
             "name_chat": student.chat_view,
             "meta": [
@@ -305,18 +309,12 @@ class GetAdminPersonal(APIView):
         }
         messages = []
 
-        if is_user_teacher:
-            messages = (
-                MessageInTeacherChatModel.objects
-                .filter(teacher=user, user=student)
-                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-            )
-        else:
-            messages = (
-                MessageInTeacherChatModel.objects
-                .filter(teacher=student, user=user)
-                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-            )
+        messages = (
+            MessageInTeacherChatModel.objects
+            .filter(teacher=user, user=student)
+            .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+        )
+
 
         if messages:
             pagination_dict = {
@@ -324,16 +322,10 @@ class GetAdminPersonal(APIView):
                 "last": messages[0].id
             }
             check_query = False
-            if is_user_teacher:
-                check_query = MessageInTeacherChatModel.objects.filter(
-                    created_at__lt=messages[-1].created_at,
-                    teacher=user, user=student,
-                ).exists()
-            else:
-                check_query = MessageInTeacherChatModel.objects.filter(
-                    created_at__lt=messages[-1].created_at,
-                    teacher=student, user=user,
-                ).exists()
+            check_query = MessageInTeacherChatModel.objects.filter(
+                created_at__lt=messages[-1].created_at,
+                teacher=user, user=student,
+            ).exists()
             if check_query:
                 pagination_dict["has_next"] = True
             else:
@@ -370,6 +362,295 @@ class GetAdminPersonal(APIView):
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
         return Response({"data": resp_dict}, status=status.HTTP_200_OK)
+
+
+    def post(self, request, uuid):
+        user = request.user
+        student = self._get_student(user, uuid)
+        is_user_teacher = self._get_is_user_teacher(user, student)
+        text = self.request.data.get('text')
+        if not text:
+            return Response({"error": "No text"}, status=status.HTTP_400_BAD_REQUEST)
+
+        if not is_user_teacher:
+            message = MessageInTeacherChatModel.objects.create(
+                teacher=student,
+                student=user,
+                from_teacher=False,
+                message=text
+            )
+        else:
+            message = MessageInTeacherChatModel.objects.create(
+                teacher=user,
+                student=student,
+                from_teacher=True,
+                message=text
+            )
+        data = {
+            "uuid": message.id,
+            "text": message.message
+        }
+        return Response({"data": data}, status=status.HTTP_204_NO_CONTENT)
+
+
+    def patch(self, request, uuid):
+        user = request.user
+        student = self._get_student(user, uuid)
+        is_user_teacher = self._get_is_user_teacher(user, student)
+        if not is_user_teacher:
+            user, student = student, user
+
+        uuid_changed = self.request.data.get('uuid')
+        text = self.request.data.get('text')
+        if not text:
+           return Response({"error": "No text"}, status=status.HTTP_400_BAD_REQUEST)
+        message = get_object_or_404(MessageInTeacherChatModel, pk=uuid_changed, teacher=user, user=student)
+
+        deleted_message = DeletedMessage.objects.create(
+            user=user,
+            message=message.message,
+            info_about=f"{message.created_at} {user.email} {student.email} {message.from_teacher}",
+        )
+        message.message = text
+        message.updated_at = timezone.now()
+        message.save()
+
+        data = {
+            "uuid": message.id,
+            "text": message.message
+        }
+
+        return Response({"data": data}, status=status.HTTP_200_OK)
+
+
+    def delete(self, request, uuid):
+        user = request.user
+        student = self._get_student(user, uuid)
+        is_user_teacher = self._get_is_user_teacher(user, student)
+        if not is_user_teacher:
+            user, student = student, user
+
+        uuid_deleted = self.request.data.get('uuid')
+        message = get_object_or_404(MessageInTeacherChatModel, pk=uuid_deleted, teacher=user, user=student)
+
+        if user.user_type != "teacher":
+            if message.user != user:
+                return Response({"error": "No access"}, status=status.HTTP_403_FORBIDDEN)
+
+        deleted_message = DeletedMessage.objects.create(
+            user=user,
+            message=message.message,
+            info_about=f"{message.created_at} {user.email} {student.email} {message.from_teacher}",
+        )
+        message.delete()
+
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+
+
+class AnnouncementGroupAPIView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _check_access(self, user, uuid):
+        if user.user_type != "teacher":
+            raise PermissionDenied()
+
+        return get_object_or_404(ClassModel, id=uuid)
+
+    def get(self, request, uuid):
+        user = request.user
+        group = self._check_access(user, uuid)
+
+        pagination = request.query_params.get("pagination", 10)
+
+        try:
+            pagination = int(pagination)
+        except (TypeError, ValueError):
+            return Response(
+                {"detail": "pagination должен быть числом"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if pagination <= 0:
+            return Response(
+                {"detail": "pagination должен быть больше 0"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        announcements = (
+            AnnouncementInClass.objects
+            .filter(group=group)
+            .order_by("-date")
+        )
+
+        paginator = Paginator(announcements, pagination)
+
+        current_page = request.query_params.get("page", 1)
+
+        try:
+            current_page = int(current_page)
+        except (TypeError, ValueError):
+            current_page = 1
+
+        if current_page < 1:
+            current_page = 1
+
+        page = paginator.get_page(current_page)
+
+        announcements_result = []
+
+        for announcement in page.object_list:
+            announcements_result.append([
+                str(announcement.id),
+                announcement.title,
+                announcement.announce,
+                announcement.date,
+            ])
+
+        data = {
+            "meta": [
+                "uuid",
+                "title",
+                "html-text",
+                "date",
+            ],
+            "announcements": announcements_result,
+            "pagination": {
+                "total_pages": paginator.num_pages,
+                "current_page": page.number,
+                "total_count": paginator.count,
+                "has_next": page.has_next(),
+                "has_previous": page.has_previous(),
+            }
+        }
+
+        return Response(
+            {"data": data},
+            status=status.HTTP_200_OK
+        )
+
+    def post(self, request, uuid):
+        user = request.user
+        group = self._check_access(user, uuid)
+
+        title = request.data.get("title")
+        html_text = request.data.get("html-text")
+        datetime_value = request.data.get("date")
+
+        if title is None:
+            return Response(
+                {"detail": "Необходимо указать title"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if html_text is None:
+            return Response(
+                {"detail": "Необходимо указать html-text"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if datetime_value is None:
+            return Response(
+                {"detail": "Необходимо указать datetime"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        announcement = AnnouncementInClass.objects.create(
+            user=user,
+            group=group,
+            title=title,
+            announce=html_text,
+            date=datetime_value,
+        )
+
+        return Response(
+            {
+                "data": {
+                    "uuid": str(announcement.id),
+                }
+            },
+            status=status.HTTP_201_CREATED
+        )
+
+    def patch(self, request, uuid):
+        user = request.user
+        group = self._check_access(user, uuid)
+
+        announcement_uuid = request.data.get("uuid")
+
+        if not announcement_uuid:
+            return Response(
+                {"detail": "Необходимо указать uuid"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        announcement = get_object_or_404(
+            AnnouncementInClass,
+            id=announcement_uuid,
+            group=group,
+        )
+
+        if "title" in request.data:
+            announcement.title = request.data["title"]
+
+        if "html-text" in request.data:
+            announcement.announce = request.data["html-text"]
+
+        if "date" in request.data:
+            announcement.date = request.data["date"]
+
+        announcement.save()
+
+        return Response(
+            {
+                "data": {
+                    "uuid": str(announcement.id),
+                    "title": announcement.title,
+                    "html-text": announcement.announce,
+                    "date": announcement.date,
+                }
+            },
+            status=status.HTTP_200_OK
+        )
+
+    def delete(self, request, uuid):
+        user = request.user
+        group = self._check_access(user, uuid)
+
+        announcement_uuid = request.data.get("uuid")
+
+        if not announcement_uuid:
+            return Response(
+                {"detail": "Необходимо указать uuid"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        announcement = get_object_or_404(
+            AnnouncementInClass,
+            id=announcement_uuid,
+            group=group,
+        )
+
+        announcement.delete()
+
+        return Response(
+            {
+                "data": {
+                    "uuid": str(announcement_uuid),
+                }
+            },
+            status=status.HTTP_200_OK
+        )
+
+class AddParticipantView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _check_access(self, user):
+        if user.user_type != "teacher":
+            raise PermissionDenied()
+
+        return True
+
 
 
 
