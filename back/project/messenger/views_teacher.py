@@ -20,6 +20,10 @@ CustomUser = get_user_model()
 PAGINATION_SIZE = 20
 PAGINATION_MESSENGER_SIZE = 50
 
+lib_read_chat = {}
+lib_read_teacher = {}
+
+
 def get_info_about_users(group_local: GroupModel, group_global: ClassModel, type_group: str, user: CustomUser):
     chat_dict = {"uuid": group_local.id}
     last_messages = MessageInGroupModel.objects.filter(group=group_local).order_by(
@@ -178,6 +182,7 @@ class GetChatInfo(APIView):
             ]
             messages_result.append(message_res)
 
+        lib_read_chat[(user.id, chat.id)] = messages_result[0][0]
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
         return Response({"data": resp_dict}, status=status.HTTP_200_OK)
@@ -307,15 +312,11 @@ class GetAdminPersonal(APIView):
                 "is_read"
             ]
         }
-        messages = []
-
         messages = (
             MessageInTeacherChatModel.objects
             .filter(teacher=user, user=student)
             .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
         )
-
-
         if messages:
             pagination_dict = {
                 "first": messages[-1].id,
@@ -359,6 +360,7 @@ class GetAdminPersonal(APIView):
                 ]
                 messages_result.append(message_res)
 
+        lib_read_teacher[(user.id, student.id)] = messages_result[0][0]
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
         return Response({"data": resp_dict}, status=status.HTTP_200_OK)
@@ -645,11 +647,70 @@ class AnnouncementGroupAPIView(APIView):
 class AddParticipantView(APIView):
     permission_classes = [IsAuthenticated]
 
-    def _check_access(self, user):
+    def _check_access(self, user, uuid):
         if user.user_type != "teacher":
             raise PermissionDenied()
 
-        return True
+        chat = get_object_or_404(GroupModel, uuid=uuid)
+        return chat
+
+
+    def get(self, request, uuid):
+        user = request.user
+        chat = self._check_access(user, uuid)
+        users = CustomUser.objects.all()
+        links = list(GroupLinkModel.objects.filter(group=chat).values_list("user", flat=True))
+        users_list = []
+        for user in users:
+            if user in links:
+                continue
+            else:
+                users_list.append(
+                    [user.id, f"{user.surname} {user.name}"]
+                )
+        meta = ["uuid", "full_name"]
+        return Response(
+            {
+                "data": {
+                    "meta": meta,
+                    "users": users_list,
+                }
+            },
+            status=status.HTTP_200_OK
+        )
+
+
+    def post(self, request, uuid):
+        user = request.user
+        chat = self._check_access(user, uuid)
+        participant_uuid = request.data.get("uuid_user")
+        participant = get_object_or_404(CustomUser, uuid=participant_uuid)
+        link = GroupLinkModel.objects.get_or_create(
+            user=participant,
+            group=chat
+        )
+        return Response({"created": "OK"}, status=status.HTTP_201_CREATED)
+
+
+    def delete(self, request, uuid):
+        user = request.user
+        chat = self._check_access(user, uuid)
+
+        participant_uuid = request.data.get("uuid_user")
+        participant = get_object_or_404(CustomUser, uuid=participant_uuid)
+        link = GroupLinkModel.objects.filter(
+            user=participant,
+            group=chat
+        )
+
+        if link.exists():
+            link.first().delete()
+
+        return Response({"deleted": "OK"}, status=status.HTTP_200_OK)
+
+
+
+
 
 
 
