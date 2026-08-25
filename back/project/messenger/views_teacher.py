@@ -13,6 +13,8 @@ from schedule.utils import get_schedule_for_week
 from .models import GroupModel, ClassModel, GroupLinkModel, MessageInGroupModel, ClassTeacherLink, \
     MessageInTeacherChatModel, AnnouncementInClass, DeletedMessage, TeacherTeacherMetaLink
 
+from django.db.models import Q
+
 
 CustomUser = get_user_model()
 
@@ -181,6 +183,9 @@ class GetChatInfo(APIView):
                 message.is_read,
             ]
             messages_result.append(message_res)
+            if (not message.is_read) and (message.user != user):
+                message.is_read = True
+                message.save()
 
         lib_read_chat[(user.id, chat.id)] = messages_result[0][0]
         resp_dict["messages"] = messages_result
@@ -204,6 +209,9 @@ class GetChatInfo(APIView):
             "uuid": message.id,
             "text": message.message
         }
+        for key in list(lib_read_chat.keys()):
+            if key[1] == chat.id:
+                lib_read_chat[key] = message.id
         return Response({"data": data}, status=status.HTTP_201_CREATED)
 
 
@@ -349,6 +357,10 @@ class GetAdminPersonal(APIView):
                     message.is_read,
                 ]
                 messages_result.append(message_res)
+                if not message.is_read:
+                    message.is_read = True
+                    message.save()
+            lib_read_teacher[(user.id, student.id)] = messages_result[0][0]
         else:
             for message in messages:
                 message_res = [
@@ -359,8 +371,11 @@ class GetAdminPersonal(APIView):
                     message.is_read,
                 ]
                 messages_result.append(message_res)
+                if not message.is_read:
+                    message.is_read = True
+                    message.save()
+            lib_read_teacher[(student.id, user.id)] = messages_result[0][0]
 
-        lib_read_teacher[(user.id, student.id)] = messages_result[0][0]
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
         return Response({"data": resp_dict}, status=status.HTTP_200_OK)
@@ -392,6 +407,7 @@ class GetAdminPersonal(APIView):
             "uuid": message.id,
             "text": message.message
         }
+        lib_read_teacher[(user.id, student.id)] = message.id
         return Response({"data": data}, status=status.HTTP_204_NO_CONTENT)
 
 
@@ -707,6 +723,483 @@ class AddParticipantView(APIView):
             link.first().delete()
 
         return Response({"deleted": "OK"}, status=status.HTTP_200_OK)
+
+
+class GetMessageMonitoringView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _check_access(self, user, chat_uuid):
+        if user.user_type != "teacher":
+            raise PermissionDenied("Доступ только для учителей.")
+
+        try:
+            chat = GroupModel.objects.get(id=chat_uuid)
+        except GroupModel.DoesNotExist:
+            raise PermissionDenied("Чат не найден.")
+
+        class_link = ClassTeacherLink.objects.filter(
+            Q(group__parent_chat=chat) | Q(group__child_chat=chat),
+            teacher=user
+        ).first()
+
+        if not class_link:
+            raise PermissionDenied("Вы не привязаны к этому классу.")
+
+        return chat, class_link
+
+    def get(self, request, uuid):
+        user = request.user
+        chat, class_link = self._check_access(user, uuid)
+
+        last_uuid = request.query_params.get('last')
+        control_new = request.query_params.get('control_new', 'false').lower() == 'true'
+
+        memory_key = (user.id, chat.id)
+
+        last_message = MessageInGroupModel.objects.filter(group=chat).order_by('-created_at').first()
+
+        if not last_message:
+            if memory_key in lib_read_chat:
+                del lib_read_chat[memory_key]
+            return Response({"message": "No"}, status=status.HTTP_200_OK)
+
+        if control_new:
+            lib_read_chat[memory_key] = last_message.id
+            return self._build_response(chat, last_message.id, is_update=True)
+
+        saved_uuid = lib_read_chat.get(memory_key)
+
+        if saved_uuid is None or saved_uuid == last_uuid:
+            if last_uuid is None and saved_uuid is None:
+                lib_read_chat[memory_key] = last_message.id
+                return self._build_response(chat, last_message.id, is_update=True)
+            else:
+                return Response({"message": "No"}, status=status.HTTP_200_OK)
+        else:
+            lib_read_chat[memory_key] = last_message.id
+            return self._build_response(chat, last_message.id, is_update=True)
+
+    def _build_response(self, chat, last_uuid, is_update=False):
+        if not is_update:
+            pass
+
+        messages = (
+            MessageInGroupModel.objects
+            .filter(group=chat)
+            .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            .select_related("user")
+        )
+
+        if messages:
+            pagination_dict = {
+                "first": messages[-1].id,
+                "last": messages[0].id
+            }
+            has_next = MessageInGroupModel.objects.filter(
+                created_at__lt=messages[-1].created_at,
+                group=chat,
+            ).exists()
+            pagination_dict["has_next"] = has_next
+        else:
+            pagination_dict = {
+                "first": None,
+                "last": None,
+                "has_next": False,
+            }
+
+        messages_result = []
+        for message in messages:
+            sender_name = "me" if message.user == self.request.user else message.user.surname
+            message_res = [
+                message.id,
+                sender_name,  # arriver (отправитель)
+                message.created_at,
+                message.is_read,
+            ]
+            messages_result.append(message_res)
+            if (not message.is_read) and (message.user != self.request.user):
+                message.is_read = True
+                message.save()
+
+        data = {
+            "message": "Update",
+            "meta": [
+                "UUID",
+                "arriver",
+                "sent_datetime",
+                "is_read",
+            ],
+            "messages": messages_result,
+            "pagination": pagination_dict
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class GetPersonalMessageMonitoringView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _check_access(self, user, companion_uuid):
+        if user.user_type != "teacher":
+            raise PermissionDenied("Доступ только для учителей.")
+
+        try:
+            companion = CustomUser.objects.get(id=companion_uuid)
+        except CustomUser.DoesNotExist:
+            raise PermissionDenied("Пользователь не найден.")
+
+        if companion.user_type == 'teacher':
+            link = TeacherTeacherMetaLink.objects.filter(
+                user=user,
+                companion=companion
+            ).first()
+            if not link:
+                TeacherTeacherMetaLink.objects.create(
+                    user=user,
+                    companion=companion,
+                    status='teacher'
+                )
+                TeacherTeacherMetaLink.objects.create(
+                    user=companion,
+                    companion=user,
+                    status='student'
+                )
+        return companion
+
+    def get(self, request, uuid):
+        user = request.user
+        companion = self._check_access(user, uuid)
+
+        last_uuid = request.query_params.get('last')
+        control_new = request.query_params.get('ycontrol_new', 'false').lower() == 'true'  # Заметьте, ycontrol_new
+
+        memory_key = (user.id, companion.id)
+
+        last_message = MessageInTeacherChatModel.objects.filter(
+            teacher=user,
+            user=companion
+        ).order_by('-created_at').first()
+
+        if not last_message:
+            if memory_key in lib_read_teacher:
+                del lib_read_teacher[memory_key]
+            return Response({"message": "No"}, status=status.HTTP_200_OK)
+
+        if control_new:
+            lib_read_teacher[memory_key] = last_message.id
+            return self._build_personal_response(user, companion, last_message.id, is_update=True)
+
+        saved_uuid = lib_read_teacher.get(memory_key)
+
+        if saved_uuid is None or saved_uuid == last_uuid:
+            if last_uuid is None and saved_uuid is None:
+                lib_read_teacher[memory_key] = last_message.id
+                return self._build_personal_response(user, companion, last_message.id, is_update=True)
+            else:
+                return Response({"message": "No"}, status=status.HTTP_200_OK)
+        else:
+            lib_read_teacher[memory_key] = last_message.id
+            return self._build_personal_response(user, companion, last_message.id, is_update=True)
+
+    def _build_personal_response(self, user, companion, last_uuid, is_update=False):
+        """Строит ответ для личных сообщений."""
+        messages = (
+            MessageInTeacherChatModel.objects
+            .filter(teacher=user, user=companion)
+            .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+        )
+
+        # Формируем пагинацию
+        if messages:
+            pagination_dict = {
+                "first": messages[-1].id,
+                "last": messages[0].id
+            }
+            has_next = MessageInTeacherChatModel.objects.filter(
+                created_at__lt=messages[-1].created_at,
+                teacher=user,
+                user=companion,
+            ).exists()
+            pagination_dict["has_next"] = has_next
+        else:
+            pagination_dict = {
+                "first": None,
+                "last": None,
+                "has_next": False,
+            }
+
+        messages_result = []
+        for message in messages:
+            if message.from_teacher:
+                sender_name = "me" if message.teacher == user else message.teacher.surname
+            else:
+                sender_name = "me" if message.user == user else message.user.surname
+
+            message_res = [
+                message.id,
+                sender_name,
+                message.created_at,
+                message.is_read,
+            ]
+            messages_result.append(message_res)
+
+        data = {
+            "message": "Update",
+            "meta": [
+                "UUID",
+                "arriver",
+                "sent_datetime",
+                "is_read",
+            ],
+            "messages": messages_result,
+            "pagination": pagination_dict
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class GetGroupPaginationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _check_access(self, user, chat_uuid):
+        """Проверяет доступ к групповому чату."""
+        if user.user_type != "teacher":
+            raise PermissionDenied("Доступ только для учителей.")
+
+        try:
+            chat = GroupModel.objects.get(id=chat_uuid)
+        except GroupModel.DoesNotExist:
+            raise PermissionDenied("Чат не найден.")
+
+        # Проверяем привязку учителя к классу
+        class_link = ClassTeacherLink.objects.filter(
+            Q(group__parent_chat=chat) | Q(group__child_chat=chat),
+            teacher=user
+        ).first()
+
+        if not class_link:
+            raise PermissionDenied("Вы не привязаны к этому классу.")
+
+        return chat
+
+    def get(self, request):
+        user = request.user
+
+        chat_uuid = request.query_params.get('chat_uuid')
+        earlier = request.query_params.get('earlier', 'true').lower() == 'true'
+        current_limit = request.query_params.get('current_limit')
+
+        if not chat_uuid:
+            return Response(
+                {"error": "Необходимо указать chat_uuid"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not current_limit:
+            return Response(
+                {"error": "Необходимо указать current_limit (UUID сообщения)"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        chat = self._check_access(user, chat_uuid)
+
+        try:
+            anchor_message = MessageInGroupModel.objects.get(id=current_limit, group=chat)
+        except MessageInGroupModel.DoesNotExist:
+            return Response(
+                {"error": "Сообщение не найдено в этом чате"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if earlier:
+            messages = (
+                MessageInGroupModel.objects
+                .filter(group=chat, created_at__lt=anchor_message.created_at)
+                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+                .select_related("user")
+            )
+        else:
+            messages = (
+                MessageInGroupModel.objects
+                .filter(group=chat, created_at__gt=anchor_message.created_at)
+                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+                .select_related("user")
+            )
+
+        if messages:
+            pagination_dict = {
+                "first": messages[-1].id,
+                "last": messages[0].id,
+            }
+
+            has_previous = MessageInGroupModel.objects.filter(
+                created_at__lt=messages[-1].created_at,
+                group=chat,
+            ).exists()
+
+            has_next = MessageInGroupModel.objects.filter(
+                created_at__gt=messages[0].created_at,
+                group=chat,
+            ).exists()
+
+            pagination_dict["has_previous"] = has_previous
+            pagination_dict["has_next"] = has_next
+        else:
+            pagination_dict = {
+                "first": None,
+                "last": None,
+                "has_previous": False,
+                "has_next": False,
+            }
+
+        messages_result = []
+        for message in messages:
+            sender_name = "me" if message.user == user else message.user.surname
+            message_res = [
+                message.id,
+                sender_name,
+                message.created_at,
+                message.is_read,
+            ]
+            messages_result.append(message_res)
+
+        data = {
+            "meta": [
+                "UUID",
+                "arriver",
+                "sent_datetime",
+                "is_read",
+            ],
+            "messages": messages_result,
+            "pagination": pagination_dict
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
+
+
+class GetPersonalPaginationView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def _check_access(self, user, companion_uuid):
+        if user.user_type != "teacher":
+            raise PermissionDenied("Доступ только для учителей.")
+
+        try:
+            companion = CustomUser.objects.get(id=companion_uuid)
+        except CustomUser.DoesNotExist:
+            raise PermissionDenied("Пользователь не найден.")
+
+        return companion
+
+    def get(self, request):
+        user = request.user
+
+        companion_uuid = request.query_params.get('companion_uuid')
+        earlier = request.query_params.get('earlier', 'true').lower() == 'true'
+        current_limit = request.query_params.get('current_limit')
+
+        if not companion_uuid:
+            return Response(
+                {"error": "Необходимо указать companion_uuid"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        if not current_limit:
+            return Response(
+                {"error": "Необходимо указать current_limit (UUID сообщения)"},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        companion = self._check_access(user, companion_uuid)
+
+        try:
+            anchor_message = MessageInTeacherChatModel.objects.get(
+                id=current_limit,
+                teacher=user,
+                user=companion
+            )
+        except MessageInTeacherChatModel.DoesNotExist:
+            return Response(
+                {"error": "Сообщение не найдено в этом чате"},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+        if earlier:
+            messages = (
+                MessageInTeacherChatModel.objects
+                .filter(
+                    teacher=user,
+                    user=companion,
+                    created_at__lt=anchor_message.created_at
+                )
+                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            )
+        else:
+            messages = (
+                MessageInTeacherChatModel.objects
+                .filter(
+                    teacher=user,
+                    user=companion,
+                    created_at__gt=anchor_message.created_at
+                )
+                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            )
+
+        if messages:
+            pagination_dict = {
+                "first": messages[-1].id,
+                "last": messages[0].id,
+            }
+
+            has_previous = MessageInTeacherChatModel.objects.filter(
+                created_at__lt=messages[-1].created_at,
+                teacher=user,
+                user=companion,
+            ).exists()
+
+            has_next = MessageInTeacherChatModel.objects.filter(
+                created_at__gt=messages[0].created_at,
+                teacher=user,
+                user=companion,
+            ).exists()
+
+            pagination_dict["has_previous"] = has_previous
+            pagination_dict["has_next"] = has_next
+        else:
+            pagination_dict = {
+                "first": None,
+                "last": None,
+                "has_previous": False,
+                "has_next": False,
+            }
+
+        messages_result = []
+        for message in messages:
+            if message.from_teacher:
+                sender_name = "me" if message.teacher == user else message.teacher.surname
+            else:
+                sender_name = "me" if message.user == user else message.user.surname
+
+            message_res = [
+                message.id,
+                sender_name,
+                message.created_at,
+                message.is_read,
+            ]
+            messages_result.append(message_res)
+
+        data = {
+            "meta": [
+                "UUID",
+                "arriver",
+                "sent_datetime",
+                "is_read",
+            ],
+            "messages": messages_result,
+            "pagination": pagination_dict
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
 
 
 
