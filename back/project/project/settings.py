@@ -19,11 +19,12 @@ ALLOWED_HOSTS = ['*']
 
 CORS_ORIGIN_ALLOW_ALL = True
 CORS_ALLOW_CREDENTIALS = True
-CSRF_TRUSTED_ORIGINS = ['http://localhost:3000/', 'http://localhost:5173']
+CSRF_TRUSTED_ORIGINS = ['http://localhost:3000/', 'http://localhost:5173', 'https://bviisostudia.ru']
 CORS_ORIGIN_WHITELIST = (
     'http://localhost:5173',
     'http://localhost:8000',
     'http://localhost',
+    'https://bviisostudia.ru'
 )
 
 # Application definition
