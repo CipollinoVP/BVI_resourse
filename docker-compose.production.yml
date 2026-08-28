@@ -21,7 +21,7 @@ services:
       context: ./front
     networks:
       - bvi_network
-  backend:
+  back:
     build:
       context: ./back
     image: bvi_back:latest
