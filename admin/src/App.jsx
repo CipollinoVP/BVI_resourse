@@ -9,7 +9,9 @@ import Header from './Components/Header/Header'
 import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './Components/ProtectedRoute'
 import ClassMain from './Components/ClassEdit/ClassMain'
+import AddParticipant from './Components/ClassEdit/AddParticipant'
 import AnnouncementCreate from './Components/Announcement/AnnouncementCreate'
+import CreateUser from './Components/CreateUser'
 
 
 function FrontApp() {
@@ -42,6 +44,22 @@ function FrontApp() {
                                 element={
                                     <ProtectedRoute>
                                         <AnnouncementCreate />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/add_participant/:id"
+                                element={
+                                    <ProtectedRoute>
+                                        <AddParticipant />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/add_user"
+                                element={
+                                    <ProtectedRoute>
+                                        <CreateUser />
                                     </ProtectedRoute>
                                 }
                             />

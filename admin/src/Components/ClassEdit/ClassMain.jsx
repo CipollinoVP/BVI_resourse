@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { teacherService } from '../../services/teacherService';
+import { NavLink } from 'react-router-dom';
 
 const ClassMain = () => {
   const { id } = useParams();
@@ -59,6 +60,9 @@ const ClassMain = () => {
               </li>
             ))}
           </ul>
+          <NavLink to={`/add_participant/${classData.parents_chat.uuid}`}>
+             Добавить родителя
+          </NavLink>
         </section>
 
         {/* Чаты учеников */}
@@ -81,6 +85,9 @@ const ClassMain = () => {
               </li>
             ))}
           </ul>
+          <NavLink to={`/add_participant/${classData.child_chat.uuid}`}>
+             Добавить ученика
+          </NavLink>
         </section>
       </div>
 

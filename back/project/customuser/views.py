@@ -1,5 +1,6 @@
 import secrets
 import string
+import requests
 
 from django.core.mail import send_mail
 from django.db import transaction
@@ -41,18 +42,33 @@ class TeacherCreateUserView(APIView):
             user.set_password(password)
             user.save(update_fields=['password'])
 
-            send_mail(
-                subject='Данные для входа',
-                message=(
-                    f'Здравствуйте, {user.name} {user.surname}!\n\n'
-                    f'Для вас была создана учётная запись.\n\n'
-                    f'Email: {user.email}\n'
-                    f'Пароль: {password}\n\n'
-                    f'Используйте эти данные для входа в систему.'
-                ),
-                from_email=settings.DEFAULT_FROM_EMAIL,
-                recipient_list=[user.email],
-                fail_silently=False,
+            text_content = f""""
+                Здравствуйте, {user.name} {user.surname}!
+                    
+                    Для вас была создана учётная запись.
+                    Email: {user.email}
+                    Пароль: {password}
+                    Используйте эти данные для входа в систему.
+            """
+
+            html_content = f""""
+                            <h3>
+                            Здравствуйте, {user.name} {user.surname}!
+                            </h3>
+                            <p>
+                                Для вас была создана учётная запись. <br/>
+                                Email: {user.email} <br/>
+                                Пароль: {password} <br/><br/>
+                                Используйте эти данные для входа в систему.
+                            </p>
+                        """
+
+            requests.post("http://172.17.0.1:8116/",json={
+                    "email": [user.email],
+                    "subject": "Данные для входа",
+                    "text_message": text_content,
+                    "html_message": html_content,
+                }
             )
 
         return Response(

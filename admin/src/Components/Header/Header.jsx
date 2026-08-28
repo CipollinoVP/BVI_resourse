@@ -16,14 +16,27 @@ const Header = () => {
     }
   };
 
+  const handleCreateClick = () => {
+    if (isAuthenticated) {
+      navigate('/add_user');
+    }
+  };
+
   return (
     <header style={styles.header}>
       <Link to="/" style={styles.logoLink}>
         <img src={logo} alt="На главную" style={styles.logo} />
       </Link>
-      <button onClick={handleAuthClick} style={styles.button}>
-        {isAuthenticated ? 'Выйти' : 'Войти'}
-      </button>
+      <div>
+        {isAuthenticated &&
+            <button onClick={handleCreateClick} style={styles.button}>
+                Создать пользователя
+            </button>
+        }
+        <button onClick={handleAuthClick} style={styles.button}>
+            {isAuthenticated ? 'Выйти' : 'Войти'}
+        </button>
+      </div>
     </header>
   );
 };

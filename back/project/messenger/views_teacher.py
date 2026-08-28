@@ -670,7 +670,7 @@ class AddParticipantView(APIView):
         if user.user_type != "teacher":
             raise PermissionDenied()
 
-        chat = get_object_or_404(GroupModel, uuid=uuid)
+        chat = get_object_or_404(GroupModel, id=uuid)
         return chat
 
 
@@ -679,10 +679,14 @@ class AddParticipantView(APIView):
         chat = self._check_access(user, uuid)
         users = CustomUser.objects.all()
         links = list(GroupLinkModel.objects.filter(group=chat).values_list("user", flat=True))
+        print(links)
         users_list = []
+        users_current = []
         for user in users:
-            if user in links:
-                continue
+            if user.id in links:
+                users_current.append(
+                    [user.id, f"{user.surname} {user.name}"]
+                )
             else:
                 users_list.append(
                     [user.id, f"{user.surname} {user.name}"]
@@ -693,6 +697,7 @@ class AddParticipantView(APIView):
                 "data": {
                     "meta": meta,
                     "users": users_list,
+                    "users_current": users_current,
                 }
             },
             status=status.HTTP_200_OK
