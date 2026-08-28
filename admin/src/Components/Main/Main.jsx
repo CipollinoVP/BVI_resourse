@@ -237,3 +237,9 @@ const styles = {
     borderRadius: '4px',
     padding: '4px 6px',
     overflow: 'hidden',
+    boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+    zIndex: 2,
+  },
+};
+
+export default Main;

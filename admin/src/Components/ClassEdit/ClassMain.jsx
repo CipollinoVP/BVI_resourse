@@ -189,10 +189,10 @@ const styles = {
   chatStatus: { margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: '#495057' },
   list: { listStyle: 'none', padding: 0, margin: 0 },
   listItem: {
-    display: 'flex',
-    justify.content: 'space-between',
-    padding: '0.5rem 0',
-    borderBottom: '1px solid #f1f3f5',
+   display: 'flex',
+   justifyContent: 'space-between', // Исправлено: justifyContent вместо justify.content
+   padding: '0.5rem 0',
+   borderBottom: '1px solid #f1f3f5',
   },
   section: { marginBottom: '2.5rem' },
   announcementsGrid: { display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '1rem' },
