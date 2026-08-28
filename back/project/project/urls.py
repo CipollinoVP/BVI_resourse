@@ -4,6 +4,7 @@ from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
 )
+from customuser.views import ReturnTypeView
 
 
 urlpatterns = [
@@ -12,6 +13,8 @@ urlpatterns = [
     path('api/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
 
     path('api/admin/', include('messenger.url_teacher')),
+    path('api/students/', include('messenger.url_students')),
+    path('api/type/', ReturnTypeView.as_view(), name='return_type'),
 
     # Djoser аутентификация
     path('api/auth/', include('djoser.urls')),

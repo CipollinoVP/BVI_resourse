@@ -174,6 +174,7 @@ class GetChatInfo(APIView):
             }
 
         messages_result = []
+        unread_ids = []
         for message in messages:
             message_res = [
                 message.id,
@@ -184,10 +185,14 @@ class GetChatInfo(APIView):
             ]
             messages_result.append(message_res)
             if (not message.is_read) and (message.user != user):
-                message.is_read = True
-                message.save()
+                if not message.is_read and message.user.id != user.id:
+                    unread_ids.append(message.id)
 
-        lib_read_chat[(user.id, chat.id)] = messages_result[0][0]
+        MessageInGroupModel.objects.filter(
+            id__in=unread_ids
+        ).update(is_read=True)
+
+        lib_read_chat[chat.id] = messages_result[0][0]
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
         return Response({"data": resp_dict}, status=status.HTTP_200_OK)
@@ -209,9 +214,7 @@ class GetChatInfo(APIView):
             "uuid": message.id,
             "text": message.message
         }
-        for key in list(lib_read_chat.keys()):
-            if key[1] == chat.id:
-                lib_read_chat[key] = message.id
+        lib_read_chat[chat.id] = message.id
         return Response({"data": data}, status=status.HTTP_201_CREATED)
 
 
@@ -729,9 +732,6 @@ class GetMessageMonitoringView(APIView):
     permission_classes = [IsAuthenticated]
 
     def _check_access(self, user, chat_uuid):
-        if user.user_type != "teacher":
-            raise PermissionDenied("Доступ только для учителей.")
-
         try:
             chat = GroupModel.objects.get(id=chat_uuid)
         except GroupModel.DoesNotExist:
@@ -742,7 +742,7 @@ class GetMessageMonitoringView(APIView):
             teacher=user
         ).first()
 
-        if not class_link:
+        if (not class_link) and (user.user_type != "teacher"):
             raise PermissionDenied("Вы не привязаны к этому классу.")
 
         return chat, class_link
@@ -752,34 +752,26 @@ class GetMessageMonitoringView(APIView):
         chat, class_link = self._check_access(user, uuid)
 
         last_uuid = request.query_params.get('last')
-        control_new = request.query_params.get('control_new', 'false').lower() == 'true'
 
-        memory_key = (user.id, chat.id)
-
-        last_message = MessageInGroupModel.objects.filter(group=chat).order_by('-created_at').first()
-
-        if not last_message:
-            if memory_key in lib_read_chat:
-                del lib_read_chat[memory_key]
-            return Response({"message": "No"}, status=status.HTTP_200_OK)
-
-        if control_new:
-            lib_read_chat[memory_key] = last_message.id
-            return self._build_response(chat, last_message.id, is_update=True)
-
-        saved_uuid = lib_read_chat.get(memory_key)
-
-        if saved_uuid is None or saved_uuid == last_uuid:
-            if last_uuid is None and saved_uuid is None:
-                lib_read_chat[memory_key] = last_message.id
-                return self._build_response(chat, last_message.id, is_update=True)
-            else:
+        if chat.id in lib_read_chat:
+            if lib_read_chat[chat.id] is None:
                 return Response({"message": "No"}, status=status.HTTP_200_OK)
+            if lib_read_chat[chat.id] == last_uuid:
+                return Response({"message": "No"}, status=status.HTTP_200_OK)
+            else:
+                return self._build_response(chat, is_update=True)
         else:
-            lib_read_chat[memory_key] = last_message.id
-            return self._build_response(chat, last_message.id, is_update=True)
+            query = MessageInGroupModel.objects.filter(group=chat).order_by("-created_at")
+            if query.exists():
+                lib_read_chat[chat.id] = query.first().id
+                return self._build_response(chat, is_update=True)
+            else:
+                lib_read_chat[chat.id] = None
+                return Response({"message": "No"}, status=status.HTTP_200_OK)
 
-    def _build_response(self, chat, last_uuid, is_update=False):
+
+
+    def _build_response(self, chat, is_update=False):
         if not is_update:
             pass
 
@@ -848,6 +840,8 @@ class GetPersonalMessageMonitoringView(APIView):
         except CustomUser.DoesNotExist:
             raise PermissionDenied("Пользователь не найден.")
 
+        teacher_status = True
+
         if companion.user_type == 'teacher':
             link = TeacherTeacherMetaLink.objects.filter(
                 user=user,
@@ -864,50 +858,52 @@ class GetPersonalMessageMonitoringView(APIView):
                     companion=user,
                     status='student'
                 )
-        return companion
+            elif link.status != 'teacher':
+                teacher_status = False
+        return companion, teacher_status
 
     def get(self, request, uuid):
         user = request.user
-        companion = self._check_access(user, uuid)
+        companion, teacher_status = self._check_access(user, uuid)
 
         last_uuid = request.query_params.get('last')
-        control_new = request.query_params.get('ycontrol_new', 'false').lower() == 'true'  # Заметьте, ycontrol_new
-
         memory_key = (user.id, companion.id)
 
-        last_message = MessageInTeacherChatModel.objects.filter(
-            teacher=user,
-            user=companion
-        ).order_by('-created_at').first()
-
-        if not last_message:
-            if memory_key in lib_read_teacher:
-                del lib_read_teacher[memory_key]
-            return Response({"message": "No"}, status=status.HTTP_200_OK)
-
-        if control_new:
-            lib_read_teacher[memory_key] = last_message.id
-            return self._build_personal_response(user, companion, last_message.id, is_update=True)
-
-        saved_uuid = lib_read_teacher.get(memory_key)
-
-        if saved_uuid is None or saved_uuid == last_uuid:
-            if last_uuid is None and saved_uuid is None:
-                lib_read_teacher[memory_key] = last_message.id
-                return self._build_personal_response(user, companion, last_message.id, is_update=True)
-            else:
+        if memory_key in lib_read_teacher:
+            if lib_read_teacher[memory_key] is None:
                 return Response({"message": "No"}, status=status.HTTP_200_OK)
+            if lib_read_teacher[memory_key] == last_uuid:
+                return Response({"message": "No"}, status=status.HTTP_200_OK)
+            else:
+                return self._build_personal_response(user, companion, is_teacher=teacher_status)
         else:
-            lib_read_teacher[memory_key] = last_message.id
-            return self._build_personal_response(user, companion, last_message.id, is_update=True)
+            if teacher_status:
+                query = MessageInTeacherChatModel.objects.filter(teacher=user, user=companion).order_by("-created_at")
+            else:
+                query = MessageInTeacherChatModel.objects.filter(teacher=companion, user=user).order_by("-created_at")
+            if query.exists():
+                lib_read_teacher[memory_key] = query.first().id
+                return self._build_personal_response(user, companion, is_teacher=teacher_status)
+            else:
+                lib_read_teacher[memory_key] = None
+                return Response({"message": "No"}, status=status.HTTP_200_OK)
 
-    def _build_personal_response(self, user, companion, last_uuid, is_update=False):
+
+    def _build_personal_response(self, user, companion, is_teacher=True):
         """Строит ответ для личных сообщений."""
-        messages = (
-            MessageInTeacherChatModel.objects
-            .filter(teacher=user, user=companion)
-            .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-        )
+
+        if is_teacher:
+            messages = (
+                MessageInTeacherChatModel.objects
+                .filter(teacher=user, user=companion)
+                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            )
+        else:
+            messages = (
+                MessageInTeacherChatModel.objects
+                .filter(teacher=companion, user=user)
+                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            )
 
         # Формируем пагинацию
         if messages:
@@ -982,18 +978,12 @@ class GetGroupPaginationView(APIView):
 
         return chat
 
-    def get(self, request):
+    def get(self, request, uuid):
         user = request.user
 
-        chat_uuid = request.query_params.get('chat_uuid')
         earlier = request.query_params.get('earlier', 'true').lower() == 'true'
         current_limit = request.query_params.get('current_limit')
 
-        if not chat_uuid:
-            return Response(
-                {"error": "Необходимо указать chat_uuid"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
         if not current_limit:
             return Response(
@@ -1001,7 +991,7 @@ class GetGroupPaginationView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        chat = self._check_access(user, chat_uuid)
+        chat = self._check_access(user, uuid)
 
         try:
             anchor_message = MessageInGroupModel.objects.get(id=current_limit, group=chat)
@@ -1091,18 +1081,11 @@ class GetPersonalPaginationView(APIView):
 
         return companion
 
-    def get(self, request):
+    def get(self, request, uuid):
         user = request.user
 
-        companion_uuid = request.query_params.get('companion_uuid')
         earlier = request.query_params.get('earlier', 'true').lower() == 'true'
         current_limit = request.query_params.get('current_limit')
-
-        if not companion_uuid:
-            return Response(
-                {"error": "Необходимо указать companion_uuid"},
-                status=status.HTTP_400_BAD_REQUEST
-            )
 
         if not current_limit:
             return Response(
@@ -1110,7 +1093,7 @@ class GetPersonalPaginationView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
-        companion = self._check_access(user, companion_uuid)
+        companion = self._check_access(user, uuid)
 
         try:
             anchor_message = MessageInTeacherChatModel.objects.get(

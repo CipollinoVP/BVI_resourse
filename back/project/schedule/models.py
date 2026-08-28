@@ -39,10 +39,10 @@ class RegularLessonModel(models.Model):
     group = models.ForeignKey(ClassModel, verbose_name="Группа", on_delete=models.CASCADE, null=True, blank=True)
     weekday = models.CharField(verbose_name="День недели", choices=weekdays, max_length=20, default="Monday")
     name = models.CharField(verbose_name="Предмет", max_length=100, blank=True, null=True)
-    start_time = models.TimeField(verbose_name="Начало", auto_now_add=True)
-    finish_time = models.TimeField(verbose_name="Конец", auto_now_add=True)
-    start_schedule = models.DateField(verbose_name="Дата начала действия расписания", auto_now_add=True)
-    end_schedule = models.DateField(verbose_name="Дата окончания действия расписания", auto_now_add=True)
+    start_time = models.TimeField(verbose_name="Начало", null=True, blank=True)
+    finish_time = models.TimeField(verbose_name="Конец", null=True, blank=True)
+    start_schedule = models.DateField(verbose_name="Дата начала действия расписания", null=True, blank=True)
+    end_schedule = models.DateField(verbose_name="Дата окончания действия расписания", null=True, blank=True)
 
     def __str__(self):
         return f"{self.name} {self.group.name}"
@@ -57,8 +57,8 @@ class IrregularLessonModel(models.Model):
     teacher = models.ForeignKey(TeacherModel, verbose_name="Педагог", on_delete=models.SET_NULL, null=True, blank=True)
     group = models.ForeignKey(ClassModel, verbose_name="Группа", on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(verbose_name="Предмет", max_length=100, blank=True, null=True)
-    start_time = models.TimeField(verbose_name="Начало", auto_now_add=True)
-    finish_time = models.TimeField(verbose_name="Конец", auto_now_add=True)
+    start_time = models.TimeField(verbose_name="Начало", null=True, blank=True)
+    finish_time = models.TimeField(verbose_name="Конец", null=True, blank=True)
     date = models.DateField(verbose_name="Дата", default=datetime.date.today)
 
     def __str__(self):

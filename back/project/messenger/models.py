@@ -151,7 +151,7 @@ class AnnouncementGlobal(models.Model):
     user = models.ForeignKey(CustomUser, on_delete=models.CASCADE)
     date = models.DateField(auto_now_add=True)
     title = models.CharField(verbose_name="Заголовок", max_length=300, blank=True, null=True)
-    img = models.ImageField(upload_to="media/")
+    img = models.ImageField(upload_to="media/", blank=True, null=True)
     announce = RichTextUploadingField("Текст", blank=True, null=True)
     for_all = models.BooleanField(default=False, verbose_name="Общее")
 
@@ -165,8 +165,8 @@ class AnnouncementGlobal(models.Model):
 
 class AnnounceTypeLink(models.Model):
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    announce = models.ForeignKey(AnnouncementGlobal, on_delete=models.CASCADE)
-    type_group = models.ForeignKey(TypeClassModel, on_delete=models.CASCADE)
+    announce = models.ForeignKey(AnnouncementGlobal, on_delete=models.CASCADE, related_name="type_links")
+    type_group = models.ForeignKey(TypeClassModel, on_delete=models.CASCADE, related_name="announcement_links")
 
     class Meta:
         verbose_name = "Таблица связей тип-объявление"
