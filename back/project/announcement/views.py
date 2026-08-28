@@ -1,3 +1,5 @@
+import requests
+from django.contrib.auth import get_user_model
 from django.shortcuts import render
 
 from django.db.models import Q
@@ -18,7 +20,7 @@ from messenger.models import (
     GroupLinkModel,
     AnnouncementGlobal,
     AnnouncementInClass,
-    AnnounceTypeLink,
+    AnnounceTypeLink, GroupModel,
 )
 
 from .serializers import (
@@ -30,6 +32,8 @@ from .serializers import (
 
 from .permissions import IsTeacher
 
+
+CustomUser = get_user_model()
 
 def get_ordering(request):
     """
@@ -110,6 +114,15 @@ class GroupTagAssignView(APIView):
         IsTeacher,
     ]
 
+    def get(self, request, class_id):
+        all_tags = TypeClassModel.objects.all()
+        linked_tags = ClassTypesLink.objects.filter(class_model__id=class_id)
+        linked_data = []
+        for linked_tag in linked_tags:
+            linked_data.append({"id": linked_tag.type_model.id, "name": linked_tag.type_model.name})
+        serializer = TypeClassSerializer(all_tags, many=True)
+        return Response({"all_tags": serializer.data, "linked_tags": linked_data}, status=status.HTTP_200_OK)
+
     def post(self, request, class_id):
         class_model = get_object_or_404(
             ClassModel,
@@ -148,6 +161,13 @@ class GroupTagAssignView(APIView):
             status=status.HTTP_200_OK,
         )
 
+    def delete(self, request, class_id):
+        tag = get_object_or_404(TypeClassModel,pk=request.data["id"])
+        class_model = get_object_or_404(ClassModel,id=class_id)
+        link = get_object_or_404(ClassTypesLink, type_model=tag, class_model=class_model)
+        link.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
 
 class GlobalAnnouncementCreateView(APIView):
     """
@@ -176,6 +196,38 @@ class GlobalAnnouncementCreateView(APIView):
         )
 
         announcement = serializer.save()
+
+        if announcement.for_all:
+            emails = CustomUser.objects.all().values_list(
+                "email",
+                flat=True,
+            )
+        else:
+            type_ids = announcement.announcetype_link_set.values_list(
+                "type_group_id",
+                flat=True,
+            )
+
+            emails = (
+                CustomUser.objects
+                .filter(
+                    group_links__group__in=GroupModel.objects.filter(
+                        Q(parent_group__type_links__type_model_id__in=type_ids)
+                        | Q(child_group__type_links__type_model_id__in=type_ids)
+                    )
+                )
+                .values_list("email", flat=True)
+                .distinct()
+            )
+
+        requests.post("http://172.17.0.1:8116/", json={
+                "email": [emails],
+                "subject": f"Объявление: {announcement.title}",
+                "text_message": announcement.announce,
+                "html_message": announcement.announce,
+            }
+        )
+
 
         return Response(
             AnnouncementGlobalSerializer(

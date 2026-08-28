@@ -25,7 +25,6 @@ PAGINATION_MESSENGER_SIZE = 50
 lib_read_chat = {}
 lib_read_teacher = {}
 
-
 def get_info_about_users(group_local: GroupModel, group_global: ClassModel, type_group: str, user: CustomUser):
     chat_dict = {"uuid": group_local.id}
     last_messages = MessageInGroupModel.objects.filter(group=group_local).order_by(
@@ -121,6 +120,81 @@ class GetClassInfoView(APIView):
 
         return Response({"data": data}, status=status.HTTP_200_OK)
 
+
+class ClassManageView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        name = request.data.get("name")
+
+        if not name:
+            return Response(
+                {"detail": "Необходимо указать название класса."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        parent_chat = GroupModel.objects.create()
+        child_chat = GroupModel.objects.create()
+
+        class_obj = ClassModel.objects.create(
+            name=name,
+            parent_chat=parent_chat,
+            child_chat=child_chat,
+        )
+
+        return Response(
+            {
+                "uuid": class_obj.id,
+                "name": class_obj.name,
+            },
+            status=status.HTTP_201_CREATED,
+        )
+
+    def put(self, request):
+        uuid = request.data.get("uuid")
+        try:
+            class_obj = ClassModel.objects.get(id=uuid)
+        except ClassModel.DoesNotExist:
+            return Response(
+                {"detail": "Класс не найден."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        name = request.data.get("name")
+
+        if not name:
+            return Response(
+                {"detail": "Необходимо указать название класса."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        class_obj.name = name
+        class_obj.save(update_fields=["name"])
+
+        return Response(
+            {
+                "uuid": class_obj.id,
+                "name": class_obj.name,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    def delete(self, request):
+        uuid = self.request.data.get('uuid')
+        try:
+            class_obj = ClassModel.objects.get(id=uuid)
+        except ClassModel.DoesNotExist:
+            return Response(
+                {"detail": "Класс не найден."},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        class_obj.delete()
+
+        return Response(
+            {"deleted": "OK"},
+            status=status.HTTP_200_OK,
+        )
 
 class GetChatInfo(APIView):
     permission_classes = [IsAuthenticated]

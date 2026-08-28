@@ -10,6 +10,8 @@ import { AuthProvider } from './context/AuthContext';
 import { ProtectedRoute } from './Components/ProtectedRoute'
 import ClassMain from './Components/ClassEdit/ClassMain'
 import AddParticipant from './Components/ClassEdit/AddParticipant'
+import CreateClassPage from './Components/ClassEdit/CreateClassPage'
+import EditClassPage from './Components/ClassEdit/EditClassPage'
 import AnnouncementCreate from './Components/Announcement/AnnouncementCreate'
 import CreateUser from './Components/CreateUser'
 
@@ -52,6 +54,22 @@ function FrontApp() {
                                 element={
                                     <ProtectedRoute>
                                         <AddParticipant />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/edit_class/:id"
+                                element={
+                                    <ProtectedRoute>
+                                        <EditClassPage />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/create_class"
+                                element={
+                                    <ProtectedRoute>
+                                        <CreateClassPage />
                                     </ProtectedRoute>
                                 }
                             />

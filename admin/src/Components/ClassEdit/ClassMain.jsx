@@ -37,7 +37,7 @@ const ClassMain = () => {
     <div style={styles.container}>
       <Link to="/" style={styles.backLink}>← На главную</Link>
       <h1 style={styles.title}>Класс: {name}</h1>
-
+      <NavLink to={`/edit_class/${id}`}> Редактировать </NavLink>
       {/* Чаты */}
       <div style={styles.gridTwo}>
         {/* Чаты родителей */}

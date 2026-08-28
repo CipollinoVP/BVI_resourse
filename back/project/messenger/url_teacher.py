@@ -1,6 +1,7 @@
 from django.urls import path
 from .views_teacher import GetClassInfoView, GetChatInfo, GetAdminPersonal, AnnouncementGroupAPIView, \
-    GetMessageMonitoringView, GetPersonalMessageMonitoringView, GetGroupPaginationView, GetPersonalPaginationView, AddParticipantView
+    GetMessageMonitoringView, GetPersonalMessageMonitoringView, GetGroupPaginationView, GetPersonalPaginationView, \
+    AddParticipantView, ClassManageView
 from announcement.views import TypeClassCreateView, GroupTagAssignView, GlobalAnnouncementCreateView
 from customuser.views import TeacherCreateUserView
 from mainapp.views import  TeacherMainView
@@ -34,4 +35,8 @@ urlpatterns = [
     ),
     path("main/", TeacherMainView.as_view(), name="main"),
     path('create-user/', TeacherCreateUserView.as_view(), name='create_user'),
+    path(
+        "class/",
+        ClassManageView.as_view(),
+    ),
 ]

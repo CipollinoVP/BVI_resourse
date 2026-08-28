@@ -91,6 +91,8 @@ const Main = () => {
         </section>
       )}
 
+
+      <NavLink to="/create_class"> Создать класс </NavLink>
       {/* Блок классов */}
       {data?.classes?.length > 0 && (
         <section style={styles.section}>
