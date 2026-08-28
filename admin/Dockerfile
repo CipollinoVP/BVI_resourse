@@ -22,7 +22,7 @@ FROM nginx:alpine
 COPY --from=builder /app/dist /usr/share/nginx/html
 
 # Экспонируем порт (по умолчанию)
-EXPOSE 8660
+EXPOSE 80
 
 # Запускаем nginx
 CMD ["nginx", "-g", "daemon off;"]
