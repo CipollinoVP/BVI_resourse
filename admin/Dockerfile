@@ -6,8 +6,8 @@ WORKDIR /app
 # Копируем package.json и package-lock.json (если есть)
 COPY package*.json ./
 
-# Устанавливаем зависимости
-RUN npm ci --only=production
+# Устанавливаем ВСЕ зависимости (включая devDependencies)
+RUN npm ci
 
 # Копируем исходный код
 COPY . .
@@ -20,9 +20,6 @@ FROM nginx:alpine
 
 # Копируем собранные файлы из папки dist (Vite по умолчанию создает dist)
 COPY --from=builder /app/dist /usr/share/nginx/html
-
-# Копируем кастомный конфиг nginx (опционально)
-# COPY nginx.conf /etc/nginx/conf.d/default.conf
 
 # Экспонируем порт (по умолчанию)
 EXPOSE 8660
