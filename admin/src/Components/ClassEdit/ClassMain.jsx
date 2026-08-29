@@ -56,7 +56,7 @@ const ClassMain = () => {
             )}
           </div>
           <div style={styles.chatBox}>
-            <strong>Общий чат родителей:</strong>
+            <strong><NavLink to={`/group_chat/${parents_chat?.uuid}`}>Общий чат родителей:</NavLink></strong>
             <p style={styles.chatStatus}>
               {parents_chat?.last_message !== 'NONE' ? parents_chat?.last_message : 'Сообщений пока нет'}
             </p>
@@ -83,7 +83,7 @@ const ClassMain = () => {
             )}
           </div>
           <div style={styles.chatBox}>
-            <strong>Общий чат класса:</strong>
+            <strong><NavLink to={`/group_chat/${child_chat.uuid}`}>Общий чат класса:</NavLink></strong>
             <p style={styles.chatStatus}>
               {child_chat?.last_message !== 'NONE' ? child_chat?.last_message : 'Сообщений пока нет'}
             </p>

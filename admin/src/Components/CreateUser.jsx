@@ -38,7 +38,7 @@ const CreateUser = () => {
         name: '',
         surname: '',
         email: '',
-        user_type: 'student',
+        user_type: 'child',
       });
     } catch (err) {
       if (err.response?.data?.detail) {
