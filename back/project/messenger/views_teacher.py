@@ -71,7 +71,11 @@ def get_info_about_users(group_local: GroupModel, group_global: ClassModel, type
             participant_result["is_read"] = last_message.is_read
         participants_array.append(participant_result)
 
-    sorted_participants_array = sorted(participants_array, key=lambda i: i["last_time"], reverse=True)
+    sorted_participants_array = sorted(
+        participants_array,
+        key=lambda i: i["last_time"] if i["last_time"] is not None else datetime.min,
+        reverse=True
+    )
 
     return chat_dict, sorted_participants_array
 
