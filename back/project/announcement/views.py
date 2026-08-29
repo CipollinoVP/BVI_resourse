@@ -222,6 +222,7 @@ class GlobalAnnouncementCreateView(APIView):
 
         emails_list = list(emails)
 
+        print(emails_list)
         requests.post("http://172.17.0.1:8116/", json={
                 "email": [emails_list],
                 "subject": f"Объявление: {announcement.title}",
