@@ -217,67 +217,57 @@ class GetChatInfo(APIView):
     def get(self, request, uuid):
         user = request.user
         chat = self._get_chat(request.user, uuid)
+
         resp_dict = {
             "name_chat": chat.get_group_name,
-            "meta": [
-                "UUID",
-                "text",
-                "arriver",
-                "sent_datetime",
-                "is_read"
-            ]
+            "meta": ["UUID", "text", "arriver", "sent_datetime", "is_read"]
         }
-        messages = (
-            MessageInGroupModel.objects
-            .filter(group=chat)
-            .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-            .select_related("user")
-        )
-        if messages:
-            pagination_dict = {
-                "first": messages.last().id,
-                "last": messages[0].id
-            }
-            check_query = MessageInGroupModel.objects.filter(
-                created_at__lt=messages.last().created_at,
-                group=chat,
-            ).exists()
-            if check_query:
-                pagination_dict["has_next"] = True
-            else:
-                pagination_dict["has_next"] = False
-        else:
-            pagination_dict = {
-                "first": None,
-                "last": None,
-                "has_next": False,
-            }
 
+        # Получаем сообщения
+        messages_qs = MessageInGroupModel.objects.filter(group=chat).select_related("user")
+
+        # Загружаем пачку сообщений
+        messages = messages_qs.order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+        messages_list = list(messages)  # Превращаем в список для безопасной работы
+
+        # Пагинация
+        if messages_list:
+            pagination_dict = {
+                "first": messages_list[-1].id,  # Самое старое в пачке
+                "last": messages_list[0].id,  # Самое новое в пачке
+                "has_next": messages_qs.filter(
+                    created_at__lt=messages_list[-1].created_at
+                ).exists()
+            }
+        else:
+            pagination_dict = {"first": None, "last": None, "has_next": False}
+
+        # Формируем результат
         messages_result = []
         unread_ids = []
-        for message in messages:
-            message_res = [
+
+        for message in messages_list:
+            messages_result.append([
                 message.id,
                 message.message,
                 message.user.chat_view if message.user is not user else "me",
                 message.created_at,
                 message.is_read,
-            ]
-            messages_result.append(message_res)
-            if (not message.is_read) and (message.user != user):
-                if not message.is_read and message.user.id != user.id:
-                    unread_ids.append(message.id)
+            ])
 
-        MessageInGroupModel.objects.filter(
-            id__in=unread_ids
-        ).update(is_read=True)
+            if not message.is_read and message.user != user:
+                unread_ids.append(message.id)
 
-        if messages_result:
-            lib_read_chat[chat.id] = messages_result[0][0]
-        else:
-            lib_read_chat[chat.id] = None
+        # Отмечаем прочитанные
+        if unread_ids:
+            MessageInGroupModel.objects.filter(id__in=unread_ids).update(is_read=True)
+
+        # Обновляем последнее прочитанное
+        lib_read_chat[chat.id] = messages_result[0][0] if messages_result else None
+
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
+
         return Response({"data": resp_dict}, status=status.HTTP_200_OK)
 
 
@@ -389,42 +379,37 @@ class GetAdminPersonal(APIView):
 
         return is_user_teacher
 
-
     def get(self, request, uuid):
         user = request.user
         student = self._get_student(user, uuid)
         is_user_teacher = self._get_is_user_teacher(user, student)
         if not is_user_teacher:
             user, student = student, user
+
         resp_dict = {
             "name_chat": student.chat_view,
-            "meta": [
-                "UUID",
-                "text",
-                "arriver",
-                "sent_datetime",
-                "is_read"
-            ]
+            "meta": ["UUID", "text", "arriver", "sent_datetime", "is_read"]
         }
-        messages = (
-            MessageInTeacherChatModel.objects
-            .filter(teacher=user, user=student)
-            .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-        )
-        if messages:
+
+        # Создаем базовый QuerySet
+        messages_qs = MessageInTeacherChatModel.objects.filter(
+            teacher=user,
+            user=student
+        ).order_by('-created_at')
+
+        # Получаем пачку сообщений
+        messages = messages_qs[:PAGINATION_MESSENGER_SIZE]
+        messages_list = list(messages)  # Превращаем в список для безопасной работы
+
+        # Пагинация
+        if messages_list:
             pagination_dict = {
-                "first": messages.last().id,
-                "last": messages[0].id
+                "first": messages_list[-1].id,  # Самое старое в пачке
+                "last": messages_list[0].id,  # Самое новое в пачке
+                "has_next": messages_qs.filter(
+                    created_at__lt=messages_list[-1].created_at
+                ).exists()
             }
-            check_query = False
-            check_query = MessageInTeacherChatModel.objects.filter(
-                created_at__lt=messages.last().created_at,
-                teacher=user, user=student,
-            ).exists()
-            if check_query:
-                pagination_dict["has_next"] = True
-            else:
-                pagination_dict["has_next"] = False
         else:
             pagination_dict = {
                 "first": None,
@@ -432,35 +417,48 @@ class GetAdminPersonal(APIView):
                 "has_next": False,
             }
 
+        # Формируем результат и отмечаем прочитанные
         messages_result = []
+        unread_ids = []
+
         if is_user_teacher:
-            for message in messages:
-                message_res = [
+            for message in messages_list:
+                messages_result.append([
                     message.id,
                     message.message,
                     "me" if message.from_teacher else "not_me",
                     message.created_at,
                     message.is_read,
-                ]
-                messages_result.append(message_res)
+                ])
                 if not message.is_read:
-                    message.is_read = True
-                    message.save()
-            lib_read_teacher[(user.id, student.id)] = messages_result[0][0]
+                    unread_ids.append(message.id)
         else:
-            for message in messages:
-                message_res = [
+            for message in messages_list:
+                messages_result.append([
                     message.id,
                     message.message,
                     "not_me" if message.from_teacher else "me",
                     message.created_at,
                     message.is_read,
-                ]
-                messages_result.append(message_res)
+                ])
                 if not message.is_read:
-                    message.is_read = True
-                    message.save()
-            lib_read_teacher[(student.id, user.id)] = messages_result[0][0]
+                    unread_ids.append(message.id)
+
+        # Отмечаем все прочитанные одним запросом (вместо сохранения каждого в цикле)
+        if unread_ids:
+            MessageInTeacherChatModel.objects.filter(id__in=unread_ids).update(is_read=True)
+
+        # Обновляем последнее прочитанное
+        if messages_result:
+            if is_user_teacher:
+                lib_read_teacher[(user.id, student.id)] = messages_result[0][0]
+            else:
+                lib_read_teacher[(student.id, user.id)] = messages_result[0][0]
+        else:
+            if is_user_teacher:
+                lib_read_teacher[(user.id, student.id)] = None
+            else:
+                lib_read_teacher[(student.id, user.id)] = None
 
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
@@ -976,35 +974,34 @@ class GetPersonalMessageMonitoringView(APIView):
                 lib_read_teacher[memory_key] = None
                 return Response({"message": "No"}, status=status.HTTP_200_OK)
 
-
     def _build_personal_response(self, user, companion, is_teacher=True):
         """Строит ответ для личных сообщений."""
 
+        # Создаем базовый QuerySet
         if is_teacher:
-            messages = (
-                MessageInTeacherChatModel.objects
-                .filter(teacher=user, user=companion)
-                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-            )
+            messages_qs = MessageInTeacherChatModel.objects.filter(
+                teacher=user,
+                user=companion
+            ).order_by('-created_at')
         else:
-            messages = (
-                MessageInTeacherChatModel.objects
-                .filter(teacher=companion, user=user)
-                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-            )
+            messages_qs = MessageInTeacherChatModel.objects.filter(
+                teacher=companion,
+                user=user
+            ).order_by('-created_at')
+
+        # Получаем пачку сообщений
+        messages = messages_qs[:PAGINATION_MESSENGER_SIZE]
+        messages_list = list(messages)  # Превращаем в список для безопасной работы
 
         # Формируем пагинацию
-        if messages:
+        if messages_list:
             pagination_dict = {
-                "first": messages.last().id,
-                "last": messages[0].id
+                "first": messages_list[-1].id,  # ✅ Самое старое в пачке
+                "last": messages_list[0].id,  # ✅ Самое новое в пачке
+                "has_next": messages_qs.filter(
+                    created_at__lt=messages_list[-1].created_at
+                ).exists()
             }
-            has_next = MessageInTeacherChatModel.objects.filter(
-                created_at__lt=messages.last().created_at,
-                teacher=user,
-                user=companion,
-            ).exists()
-            pagination_dict["has_next"] = has_next
         else:
             pagination_dict = {
                 "first": None,
@@ -1012,29 +1009,24 @@ class GetPersonalMessageMonitoringView(APIView):
                 "has_next": False,
             }
 
+        # Формируем список сообщений
         messages_result = []
-        for message in messages:
+        for message in messages_list:  # ✅ Используем список
             if message.from_teacher:
                 sender_name = "me" if message.teacher == user else message.teacher.surname
             else:
                 sender_name = "me" if message.user == user else message.user.surname
 
-            message_res = [
+            messages_result.append([
                 message.id,
                 sender_name,
                 message.created_at,
                 message.is_read,
-            ]
-            messages_result.append(message_res)
+            ])
 
         data = {
             "message": "Update",
-            "meta": [
-                "UUID",
-                "arriver",
-                "sent_datetime",
-                "is_read",
-            ],
+            "meta": ["UUID", "arriver", "sent_datetime", "is_read"],
             "messages": messages_result,
             "pagination": pagination_dict
         }
@@ -1072,7 +1064,6 @@ class GetGroupPaginationView(APIView):
         earlier = request.query_params.get('earlier', 'true').lower() == 'true'
         current_limit = request.query_params.get('current_limit')
 
-
         if not current_limit:
             return Response(
                 {"error": "Необходимо указать current_limit (UUID сообщения)"},
@@ -1089,39 +1080,36 @@ class GetGroupPaginationView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Создаем базовый QuerySet
         if earlier:
-            messages = (
-                MessageInGroupModel.objects
-                .filter(group=chat, created_at__lt=anchor_message.created_at)
-                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-                .select_related("user")
-            )
+            messages_qs = MessageInGroupModel.objects.filter(
+                group=chat,
+                created_at__lt=anchor_message.created_at
+            ).order_by('-created_at').select_related("user")
         else:
-            messages = (
-                MessageInGroupModel.objects
-                .filter(group=chat, created_at__gt=anchor_message.created_at)
-                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-                .select_related("user")
-            )
+            messages_qs = MessageInGroupModel.objects.filter(
+                group=chat,
+                created_at__gt=anchor_message.created_at
+            ).order_by('-created_at').select_related("user")
 
-        if messages:
+        # Получаем пачку сообщений
+        messages = messages_qs[:PAGINATION_MESSENGER_SIZE]
+        messages_list = list(messages)  # Превращаем в список для безопасной работы
+
+        # Пагинация
+        if messages_list:
             pagination_dict = {
-                "first": messages.last().id,
-                "last": messages[0].id,
+                "first": messages_list[-1].id,  # ✅ Самое старое в пачке
+                "last": messages_list[0].id,    # ✅ Самое новое в пачке
+                "has_previous": messages_qs.filter(
+                    created_at__lt=messages_list[-1].created_at,
+                    group=chat,
+                ).exists(),
+                "has_next": messages_qs.filter(
+                    created_at__gt=messages_list[0].created_at,
+                    group=chat,
+                ).exists()
             }
-
-            has_previous = MessageInGroupModel.objects.filter(
-                created_at__lt=messages.last().created_at,
-                group=chat,
-            ).exists()
-
-            has_next = MessageInGroupModel.objects.filter(
-                created_at__gt=messages[0].created_at,
-                group=chat,
-            ).exists()
-
-            pagination_dict["has_previous"] = has_previous
-            pagination_dict["has_next"] = has_next
         else:
             pagination_dict = {
                 "first": None,
@@ -1130,24 +1118,19 @@ class GetGroupPaginationView(APIView):
                 "has_next": False,
             }
 
+        # Формируем результат
         messages_result = []
-        for message in messages:
+        for message in messages_list:  # ✅ Используем список
             sender_name = "me" if message.user == user else message.user.surname
-            message_res = [
+            messages_result.append([
                 message.id,
                 sender_name,
                 message.created_at,
                 message.is_read,
-            ]
-            messages_result.append(message_res)
+            ])
 
         data = {
-            "meta": [
-                "UUID",
-                "arriver",
-                "sent_datetime",
-                "is_read",
-            ],
+            "meta": ["UUID", "arriver", "sent_datetime", "is_read"],
             "messages": messages_result,
             "pagination": pagination_dict
         }
@@ -1195,47 +1178,40 @@ class GetPersonalPaginationView(APIView):
                 status=status.HTTP_404_NOT_FOUND
             )
 
+        # Создаем базовый QuerySet
         if earlier:
-            messages = (
-                MessageInTeacherChatModel.objects
-                .filter(
-                    teacher=user,
-                    user=companion,
-                    created_at__lt=anchor_message.created_at
-                )
-                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-            )
+            messages_qs = MessageInTeacherChatModel.objects.filter(
+                teacher=user,
+                user=companion,
+                created_at__lt=anchor_message.created_at
+            ).order_by('-created_at')
         else:
-            messages = (
-                MessageInTeacherChatModel.objects
-                .filter(
+            messages_qs = MessageInTeacherChatModel.objects.filter(
+                teacher=user,
+                user=companion,
+                created_at__gt=anchor_message.created_at
+            ).order_by('-created_at')
+
+        # Получаем пачку сообщений
+        messages = messages_qs[:PAGINATION_MESSENGER_SIZE]
+        messages_list = list(messages)  # Превращаем в список для безопасной работы
+
+        # Пагинация
+        if messages_list:
+            pagination_dict = {
+                "first": messages_list[-1].id,  # ✅ Самое старое в пачке
+                "last": messages_list[0].id,    # ✅ Самое новое в пачке
+                "has_previous": messages_qs.filter(
+                    created_at__lt=messages_list[-1].created_at,
                     teacher=user,
                     user=companion,
-                    created_at__gt=anchor_message.created_at
-                )
-                .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
-            )
-
-        if messages:
-            pagination_dict = {
-                "first": messages.last().id,
-                "last": messages[0].id,
+                ).exists(),
+                "has_next": messages_qs.filter(
+                    created_at__gt=messages_list[0].created_at,
+                    teacher=user,
+                    user=companion,
+                ).exists()
             }
-
-            has_previous = MessageInTeacherChatModel.objects.filter(
-                created_at__lt=messages.last().created_at,
-                teacher=user,
-                user=companion,
-            ).exists()
-
-            has_next = MessageInTeacherChatModel.objects.filter(
-                created_at__gt=messages[0].created_at,
-                teacher=user,
-                user=companion,
-            ).exists()
-
-            pagination_dict["has_previous"] = has_previous
-            pagination_dict["has_next"] = has_next
         else:
             pagination_dict = {
                 "first": None,
@@ -1244,28 +1220,23 @@ class GetPersonalPaginationView(APIView):
                 "has_next": False,
             }
 
+        # Формируем результат
         messages_result = []
-        for message in messages:
+        for message in messages_list:  # ✅ Используем список
             if message.from_teacher:
                 sender_name = "me" if message.teacher == user else message.teacher.surname
             else:
                 sender_name = "me" if message.user == user else message.user.surname
 
-            message_res = [
+            messages_result.append([
                 message.id,
                 sender_name,
                 message.created_at,
                 message.is_read,
-            ]
-            messages_result.append(message_res)
+            ])
 
         data = {
-            "meta": [
-                "UUID",
-                "arriver",
-                "sent_datetime",
-                "is_read",
-            ],
+            "meta": ["UUID", "arriver", "sent_datetime", "is_read"],
             "messages": messages_result,
             "pagination": pagination_dict
         }
