@@ -782,7 +782,7 @@ class AddParticipantView(APIView):
         user = request.user
         chat = self._check_access(user, uuid)
         participant_uuid = request.data.get("uuid_user")
-        participant = get_object_or_404(CustomUser, uuid=participant_uuid)
+        participant = get_object_or_404(CustomUser, id=participant_uuid)
         link = GroupLinkModel.objects.get_or_create(
             user=participant,
             group=chat
@@ -795,7 +795,7 @@ class AddParticipantView(APIView):
         chat = self._check_access(user, uuid)
 
         participant_uuid = request.data.get("uuid_user")
-        participant = get_object_or_404(CustomUser, uuid=participant_uuid)
+        participant = get_object_or_404(CustomUser, id=participant_uuid)
         link = GroupLinkModel.objects.filter(
             user=participant,
             group=chat
