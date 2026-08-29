@@ -990,18 +990,15 @@ class StudentParentMainView(APIView):
         # ---------------------------------------------------------
 
         teachers = (
-            TeacherModel.objects
-            .select_related("user")
-            .filter(
-                user__isnull=False,
-            )
-            .order_by("fio")
+            CustomUser.objects
+            .filter(user_type='teacher')
+            .order_by("surname")
         )
 
         teachers_data = [
             {
-                "uuid": str(teacher.user.id),
-                "fio": teacher.fio,
+                "uuid": str(teacher.id),
+                "fio": teacher.chat_view,
             }
             for teacher in teachers
         ]

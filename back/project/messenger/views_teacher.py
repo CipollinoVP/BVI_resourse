@@ -272,7 +272,10 @@ class GetChatInfo(APIView):
             id__in=unread_ids
         ).update(is_read=True)
 
-        lib_read_chat[chat.id] = messages_result[0][0]
+        if messages_result:
+            lib_read_chat[chat.id] = messages_result[0][0]
+        else:
+            lib_read_chat[chat.id] = None
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
         return Response({"data": resp_dict}, status=status.HTTP_200_OK)
