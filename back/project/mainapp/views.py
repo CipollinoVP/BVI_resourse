@@ -28,7 +28,7 @@ class TeacherMainView(APIView):
 
         classes = (
             ClassModel.objects
-            .prefetch_related("type_links__announce")
+            .prefetch_related("type_links__type_model")
             .order_by("name")
             .distinct()
         )
