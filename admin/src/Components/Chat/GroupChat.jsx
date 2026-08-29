@@ -3,7 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../../config/client';
 
 const GroupChat = () => {
-  const { uuid: chatUuid } = useParams(); // UUID группового чата (GroupModel)
+  const { uuid: chatUuid } = useParams();
   const navigate = useNavigate();
 
   const [chatName, setChatName] = useState('');
@@ -11,7 +11,7 @@ const GroupChat = () => {
   const [pagination, setPagination] = useState({ first: null, last: null, has_next: false });
 
   const [inputText, setInputText] = useState('');
-  const [editingMessage, setEditingMessage] = useState(null); // { id, text }
+  const [editingMessage, setEditingMessage] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [error, setError] = useState('');
@@ -19,17 +19,40 @@ const GroupChat = () => {
   const chatContainerRef = useRef(null);
   const isInitialLoad = useRef(true);
 
-  // Преобразование массива ответа от Django в удобный объект
-  // Django meta: ["UUID", "text", "arriver", "sent_datetime", "is_read"]
-  const parseMessage = (arr) => ({
-    id: arr[0],
-    text: arr[1],
-    arriver: arr[2], // "me" если педагог, либо фамилия отправителя
-    sentDatetime: arr[3],
-    isRead: arr[4],
-  });
+  // ✅ Универсальная функция парсинга сообщений (поддерживает оба формата)
+  const parseMessage = (msg) => {
+    // Если это объект (новый формат)
+    if (msg && typeof msg === 'object' && !Array.isArray(msg)) {
+      return {
+        id: msg.id || msg.uuid,
+        text: msg.text || msg.message || '',
+        arriver: msg.arriver || msg.sender || 'unknown',
+        sentDatetime: msg.sent_datetime || msg.created_at || new Date().toISOString(),
+        isRead: msg.is_read || msg.isRead || false,
+      };
+    }
+    // Если это массив (старый формат)
+    // Django meta: ["UUID", "text", "arriver", "sent_datetime", "is_read"]
+    if (Array.isArray(msg) && msg.length >= 5) {
+      return {
+        id: msg[0],
+        text: msg[1],
+        arriver: msg[2],
+        sentDatetime: msg[3],
+        isRead: msg[4],
+      };
+    }
+    // Fallback
+    return {
+      id: msg?.id || 'unknown',
+      text: msg?.text || '',
+      arriver: 'unknown',
+      sentDatetime: new Date().toISOString(),
+      isRead: false,
+    };
+  };
 
-  // 1. Первая загрузка чата через apiClient
+  // 1. Первая загрузка чата
   const fetchChatInfo = useCallback(async () => {
     try {
       setLoading(true);
@@ -39,7 +62,6 @@ const GroupChat = () => {
       setChatName(name_chat);
       setPagination(pagData);
 
-      // Поворачиваем массив (сервер отдаёт от новых к старым)
       const parsed = (rawMessages || []).map(parseMessage).reverse();
       setMessages(parsed);
       setError('');
@@ -56,7 +78,6 @@ const GroupChat = () => {
     fetchChatInfo();
   }, [fetchChatInfo]);
 
-  // Скролл вниз при загрузке или при отправке новых сообщений
   useEffect(() => {
     if (chatContainerRef.current && (isInitialLoad.current || !loading)) {
       chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
@@ -64,7 +85,7 @@ const GroupChat = () => {
     }
   }, [messages, loading]);
 
-  // 2. Периодический мониторинг (long-polling) новых сообщений
+  // 2. Периодический мониторинг новых сообщений
   useEffect(() => {
     if (loading || error) return;
 
@@ -79,8 +100,9 @@ const GroupChat = () => {
         });
 
         if (res.data.message === 'Update' && isSubscribed) {
-          const newRawMessages = res.data.messages || [];
-          const newParsed = newRawMessages.map(parseMessage).reverse();
+          // ✅ Используем new_messages (новый формат)
+          const newRawMessages = res.data.new_messages || [];
+          const newParsed = newRawMessages.map(parseMessage);
 
           setMessages((prev) => {
             const existingIds = new Set(prev.map((m) => m.id));
@@ -88,8 +110,8 @@ const GroupChat = () => {
             return [...prev, ...filteredNew];
           });
 
-          if (res.data.pagination) {
-            setPagination((prev) => ({ ...prev, last: res.data.pagination.last }));
+          if (res.data.last_id) {
+            setPagination((prev) => ({ ...prev, last: res.data.last_id }));
           }
         }
       } catch (err) {
@@ -103,7 +125,7 @@ const GroupChat = () => {
     };
   }, [chatUuid, pagination.last, loading, error]);
 
-  // 3. Подгрузка старых сообщений при скролле к самому верху
+  // 3. Подгрузка старых сообщений
   const handleScroll = async () => {
     if (!chatContainerRef.current || loadingMore || !pagination.has_next) return;
 
@@ -123,11 +145,14 @@ const GroupChat = () => {
         const olderParsed = olderRaw.map(parseMessage).reverse();
 
         setMessages((prev) => [...olderParsed, ...prev]);
-        setPagination((prev) => ({
-          ...prev,
-          first: res.data.pagination.first,
-          has_next: res.data.pagination.has_previous,
-        }));
+
+        if (res.data.pagination) {
+          setPagination((prev) => ({
+            ...prev,
+            first: res.data.pagination.first,
+            has_next: res.data.pagination.has_previous,
+          }));
+        }
 
         requestAnimationFrame(() => {
           if (chatContainerRef.current) {
@@ -150,7 +175,6 @@ const GroupChat = () => {
 
     try {
       if (editingMessage) {
-        // PATCH: Редактировать можно только свои сообщения
         const res = await apiClient.patch(`admin/chat/${chatUuid}/`, {
           uuid: editingMessage.id,
           text: inputText,
@@ -164,7 +188,6 @@ const GroupChat = () => {
         );
         setEditingMessage(null);
       } else {
-        // POST: Создание сообщения
         const res = await apiClient.post(`admin/chat/${chatUuid}/`, {
           text: inputText,
         });
@@ -187,7 +210,7 @@ const GroupChat = () => {
     }
   };
 
-  // 5. DELETE: Педагог может удалять ВСЕ сообщения
+  // 5. DELETE
   const handleDelete = async (messageId) => {
     if (!window.confirm('Вы уверены, что хотите удалить это сообщение?')) return;
 
@@ -217,13 +240,11 @@ const GroupChat = () => {
 
   return (
     <div style={styles.chatWrapper}>
-      {/* Шапка чата */}
       <header style={styles.header}>
         <button style={styles.backBtn} onClick={() => navigate(-1)}>← Назад</button>
         <h2 style={{ margin: 0, fontSize: '1.2rem' }}>{chatName || 'Групповой чат'}</h2>
       </header>
 
-      {/* Контейнер сообщений */}
       <div style={styles.messagesContainer} ref={chatContainerRef} onScroll={handleScroll}>
         {loadingMore && <div style={styles.loaderMore}>Загрузка более старых сообщений...</div>}
 
@@ -247,7 +268,6 @@ const GroupChat = () => {
                     {new Date(msg.sentDatetime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                   </span>
 
-                  {/* ДЕЙСТВИЯ: Редактировать (только свои), Удалить (все) */}
                   <div style={styles.actionsBlock}>
                     {isMe && (
                       <button style={styles.actionBtn} onClick={() => handleStartEdit(msg)} title="Редактировать">
@@ -265,7 +285,6 @@ const GroupChat = () => {
         })}
       </div>
 
-      {/* Ввод текста */}
       <form style={styles.inputForm} onSubmit={handleSubmit}>
         {editingMessage && (
           <div style={styles.editBar}>
