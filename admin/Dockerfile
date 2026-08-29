@@ -18,10 +18,20 @@ RUN npm run build
 # Этап 2: Сервер для статики
 FROM nginx:alpine
 
-# Копируем собранные файлы из папки dist (Vite по умолчанию создает dist)
+# Копируем собранные файлы из папки dist
 COPY --from=builder /app/dist /usr/share/nginx/html
 
-# Экспонируем порт (по умолчанию)
+# 🆕 Копируем кастомный конфиг Nginx для SPA
+RUN echo 'server { \
+    listen 80; \
+    server_name localhost; \
+    location / { \
+        root /usr/share/nginx/html; \
+        try_files $$uri $$uri/ /index.html; \
+    } \
+}' > /etc/nginx/conf.d/default.conf
+
+# Экспонируем порт
 EXPOSE 80
 
 # Запускаем nginx
