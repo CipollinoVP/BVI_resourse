@@ -203,8 +203,8 @@ class GlobalAnnouncementCreateView(APIView):
                 flat=True,
             )
         else:
-            type_ids = announcement.announcetype_link_set.values_list(
-                "type_group_id",
+            type_ids = announcement.type_links.values_list(
+                "type_group__id",
                 flat=True,
             )
 
