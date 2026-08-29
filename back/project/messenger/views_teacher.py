@@ -235,11 +235,11 @@ class GetChatInfo(APIView):
         )
         if messages:
             pagination_dict = {
-                "first": messages[-1].id,
+                "first": messages.last().id,
                 "last": messages[0].id
             }
             check_query = MessageInGroupModel.objects.filter(
-                created_at__lt=messages[-1].created_at,
+                created_at__lt=messages.last().created_at,
                 group=chat,
             ).exists()
             if check_query:
@@ -413,12 +413,12 @@ class GetAdminPersonal(APIView):
         )
         if messages:
             pagination_dict = {
-                "first": messages[-1].id,
+                "first": messages.last().id,
                 "last": messages[0].id
             }
             check_query = False
             check_query = MessageInTeacherChatModel.objects.filter(
-                created_at__lt=messages[-1].created_at,
+                created_at__lt=messages.last().created_at,
                 teacher=user, user=student,
             ).exists()
             if check_query:
@@ -872,11 +872,11 @@ class GetMessageMonitoringView(APIView):
 
         if messages:
             pagination_dict = {
-                "first": messages[-1].id,
+                "first": messages.last().id,
                 "last": messages[0].id
             }
             has_next = MessageInGroupModel.objects.filter(
-                created_at__lt=messages[-1].created_at,
+                created_at__lt=messages.last().created_at,
                 group=chat,
             ).exists()
             pagination_dict["has_next"] = has_next
@@ -996,11 +996,11 @@ class GetPersonalMessageMonitoringView(APIView):
         # Формируем пагинацию
         if messages:
             pagination_dict = {
-                "first": messages[-1].id,
+                "first": messages.last().id,
                 "last": messages[0].id
             }
             has_next = MessageInTeacherChatModel.objects.filter(
-                created_at__lt=messages[-1].created_at,
+                created_at__lt=messages.last().created_at,
                 teacher=user,
                 user=companion,
             ).exists()
@@ -1106,12 +1106,12 @@ class GetGroupPaginationView(APIView):
 
         if messages:
             pagination_dict = {
-                "first": messages[-1].id,
+                "first": messages.last().id,
                 "last": messages[0].id,
             }
 
             has_previous = MessageInGroupModel.objects.filter(
-                created_at__lt=messages[-1].created_at,
+                created_at__lt=messages.last().created_at,
                 group=chat,
             ).exists()
 
@@ -1218,12 +1218,12 @@ class GetPersonalPaginationView(APIView):
 
         if messages:
             pagination_dict = {
-                "first": messages[-1].id,
+                "first": messages.last().id,
                 "last": messages[0].id,
             }
 
             has_previous = MessageInTeacherChatModel.objects.filter(
-                created_at__lt=messages[-1].created_at,
+                created_at__lt=messages.last().created_at,
                 teacher=user,
                 user=companion,
             ).exists()
