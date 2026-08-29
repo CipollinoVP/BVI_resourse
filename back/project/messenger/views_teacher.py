@@ -845,39 +845,44 @@ class GetMessageMonitoringView(APIView):
             if lib_read_chat[chat.id] == last_uuid:
                 return Response({"message": "No"}, status=status.HTTP_200_OK)
             else:
-                return self._build_response(chat, is_update=True)
+                return self._build_response(request, chat, is_update=True)
         else:
             query = MessageInGroupModel.objects.filter(group=chat).order_by("-created_at")
             if query.exists():
                 lib_read_chat[chat.id] = query.first().id
-                return self._build_response(chat, is_update=True)
+                return self._build_response(request, chat, is_update=True)
             else:
                 lib_read_chat[chat.id] = None
                 return Response({"message": "No"}, status=status.HTTP_200_OK)
 
-
-
-    def _build_response(self, chat, is_update=False):
+    def _build_response(self, request, chat, is_update=False):
         if not is_update:
             pass
 
-        messages = (
+        user = request.user
+
+        # Создаем базовый QuerySet
+        messages_qs = (
             MessageInGroupModel.objects
             .filter(group=chat)
-            .order_by('-created_at')[:PAGINATION_MESSENGER_SIZE]
+            .order_by('-created_at')
             .select_related("user")
         )
 
-        if messages:
+        # Получаем пачку сообщений
+        messages = messages_qs[:PAGINATION_MESSENGER_SIZE]
+        messages_list = list(messages)  # Превращаем в список для безопасной работы
+
+        # Пагинация
+        if messages_list:
             pagination_dict = {
-                "first": messages.last().id,
-                "last": messages[0].id
+                "first": messages_list[-1].id,  # ✅ Самое старое в пачке
+                "last": messages_list[0].id,  # ✅ Самое новое в пачке
+                "has_next": messages_qs.filter(
+                    created_at__lt=messages_list[-1].created_at,
+                    group=chat,
+                ).exists()
             }
-            has_next = MessageInGroupModel.objects.filter(
-                created_at__lt=messages.last().created_at,
-                group=chat,
-            ).exists()
-            pagination_dict["has_next"] = has_next
         else:
             pagination_dict = {
                 "first": None,
@@ -885,28 +890,30 @@ class GetMessageMonitoringView(APIView):
                 "has_next": False,
             }
 
+        # Формируем результат и собираем ID для отметки прочитанных
         messages_result = []
-        for message in messages:
-            sender_name = "me" if message.user == self.request.user else message.user.surname
-            message_res = [
+        unread_ids = []
+
+        for message in messages_list:  # ✅ Используем список
+            sender_name = "me" if message.user == user else message.user.surname
+            messages_result.append([
                 message.id,
-                sender_name,  # arriver (отправитель)
+                sender_name,
                 message.created_at,
                 message.is_read,
-            ]
-            messages_result.append(message_res)
-            if (not message.is_read) and (message.user != self.request.user):
-                message.is_read = True
-                message.save()
+            ])
+
+            # Собираем ID непрочитанных сообщений (не от текущего пользователя)
+            if (not message.is_read) and (message.user != user):
+                unread_ids.append(message.id)
+
+        # Отмечаем все прочитанные одним запросом (вместо сохранения каждого в цикле)
+        if unread_ids:
+            MessageInGroupModel.objects.filter(id__in=unread_ids).update(is_read=True)
 
         data = {
             "message": "Update",
-            "meta": [
-                "UUID",
-                "arriver",
-                "sent_datetime",
-                "is_read",
-            ],
+            "meta": ["UUID", "arriver", "sent_datetime", "is_read"],
             "messages": messages_result,
             "pagination": pagination_dict
         }
