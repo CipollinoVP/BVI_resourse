@@ -9,9 +9,11 @@ from rest_framework import status
 
 from django.contrib.auth import get_user_model
 
+from schedule.models import TeacherModel
+from schedule.utils import get_schedule_for_week
 from .models import (
     MessageInTeacherChatModel,
-    DeletedMessage,
+    DeletedMessage, AnnouncementGlobal, ClassTypesLink, AnnouncementInClass, GroupLinkModel,
 )
 
 # Используем тот же словарь, который уже используется
@@ -812,5 +814,246 @@ class GetTeacherPersonalPaginationView(APIView):
 
         return Response(
             data,
+            status=status.HTTP_200_OK,
+        )
+
+
+class StudentParentMainView(APIView):
+
+    permission_classes = [
+        IsAuthenticated,
+    ]
+
+    def get(self, request):
+        user = request.user
+
+        # ---------------------------------------------------------
+        # Все чаты пользователя
+        # ---------------------------------------------------------
+
+        group_links = (
+            GroupLinkModel.objects
+            .select_related(
+                "group",
+                "group__parent_group",
+                "group__child_group",
+            )
+            .filter(
+                user=user,
+            )
+        )
+
+        if not group_links.exists():
+            return Response(
+                {
+                    "message": "Пользователь не состоит ни в одной группе"
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # ---------------------------------------------------------
+        # Определяем классы пользователя
+        # ---------------------------------------------------------
+
+        classes = []
+
+        for group_link in group_links:
+            chat = group_link.group
+
+            if hasattr(chat, "parent_group"):
+                class_model = chat.parent_group
+                chat_type = "parent"
+
+            elif hasattr(chat, "child_group"):
+                class_model = chat.child_group
+                chat_type = "child"
+
+            else:
+                continue
+
+            classes.append(
+                {
+                    "class": class_model,
+                    "chat": chat,
+                    "chat_type": chat_type,
+                }
+            )
+
+        if not classes:
+            return Response(
+                {
+                    "message": "Для пользователя не найден класс"
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # ---------------------------------------------------------
+        # UUID классов
+        # ---------------------------------------------------------
+
+        class_ids = [
+            item["class"].id
+            for item in classes
+        ]
+
+        # ---------------------------------------------------------
+        # Типы всех классов пользователя
+        # ---------------------------------------------------------
+
+        class_type_ids = (
+            ClassTypesLink.objects
+            .filter(
+                class_model_id__in=class_ids,
+            )
+            .values_list(
+                "type_model_id",
+                flat=True,
+            )
+            .distinct()
+        )
+
+        # ---------------------------------------------------------
+        # GLOBAL ОБЪЯВЛЕНИЯ
+        #
+        # Один запрос:
+        #
+        #   for_all=True
+        #       ИЛИ
+        #   type объявления совпадает с типом
+        #   любого класса пользователя
+        # ---------------------------------------------------------
+
+        global_announcements = (
+            AnnouncementGlobal.objects
+            .filter(
+                Q(for_all=True) |
+                Q(
+                    type_links__type_group_id__in=class_type_ids,
+                )
+            )
+            .order_by("-date")
+            .distinct()
+        )
+
+        global_announcements_data = [
+            {
+                "uuid": str(announcement.id),
+                "date": announcement.date,
+                "title": announcement.title,
+                "img": (
+                    announcement.img.url
+                    if announcement.img
+                    else None
+                ),
+                "announce": announcement.announce,
+            }
+            for announcement in global_announcements
+        ]
+
+        # ---------------------------------------------------------
+        # ОБЪЯВЛЕНИЯ ВНУТРИ КЛАССОВ
+        #
+        # Тоже можно получить одним запросом для всех классов.
+        # ---------------------------------------------------------
+
+        class_announcements = (
+            AnnouncementInClass.objects
+            .filter(
+                group_id__in=class_ids,
+            )
+            .order_by("-date")
+        )
+
+        class_announcements_by_class = {}
+
+        for announcement in class_announcements:
+            class_announcements_by_class.setdefault(
+                announcement.group_id,
+                [],
+            ).append(
+                {
+                    "uuid": str(announcement.id),
+                    "date": announcement.date,
+                    "title": announcement.title,
+                    "img": (
+                        announcement.img.url
+                        if announcement.img
+                        else None
+                    ),
+                    "announce": announcement.announce,
+                }
+            )
+
+        # ---------------------------------------------------------
+        # ПРЕПОДАВАТЕЛИ
+        # ---------------------------------------------------------
+
+        teachers = (
+            TeacherModel.objects
+            .select_related("user")
+            .filter(
+                user__isnull=False,
+            )
+            .order_by("fio")
+        )
+
+        teachers_data = [
+            {
+                "uuid": str(teacher.user.id),
+                "fio": teacher.fio,
+            }
+            for teacher in teachers
+        ]
+
+        # ---------------------------------------------------------
+        # ДАННЫЕ КЛАССОВ
+        # ---------------------------------------------------------
+
+        classes_data = []
+
+        for item in classes:
+            class_model = item["class"]
+            chat = item["chat"]
+
+            classes_data.append(
+                {
+                    "class": {
+                        "uuid": str(class_model.id),
+                        "name": class_model.name,
+                    },
+
+                    "chat": {
+                        "uuid": str(chat.id),
+                        "type": item["chat_type"],
+                    },
+
+                    # Старую функцию пока не трогаем
+                    "schedule": get_schedule_for_week(
+                        class_model
+                    ),
+
+                    "announcements": {
+                        "class": class_announcements_by_class.get(
+                            class_model.id,
+                            [],
+                        ),
+                    },
+                }
+            )
+
+        # ---------------------------------------------------------
+        # RESPONSE
+        # ---------------------------------------------------------
+
+        return Response(
+            {
+                "classes": classes_data,
+
+                "announcements": {
+                    "global": global_announcements_data,
+                },
+
+                "teachers": teachers_data,
+            },
             status=status.HTTP_200_OK,
         )

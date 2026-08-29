@@ -8,6 +8,7 @@ from .views_students import (
     GetTeacherPersonalChatView,
     GetTeacherPersonalMessageMonitoringView,
     GetTeacherPersonalPaginationView,
+    StudentParentMainView
 )
 
 urlpatterns = [
@@ -40,5 +41,11 @@ urlpatterns = [
         "parent/chats/<uuid:uuid>/pagination/",
         GetTeacherPersonalPaginationView.as_view(),
         name="parent-teacher-chat-pagination",
+    ),
+
+    path(
+        'main/',
+        StudentParentMainView.as_view(),
+        name="student-main",
     )
 ]
