@@ -824,19 +824,15 @@ class GetMessageMonitoringView(APIView):
         except GroupModel.DoesNotExist:
             raise PermissionDenied("Чат не найден.")
 
-        class_link = ClassTeacherLink.objects.filter(
-            Q(group__parent_chat=chat) | Q(group__child_chat=chat),
-            teacher=user
-        ).first()
+        if user.user_type != "teacher":
+            if not GroupLinkModel.objects.filter(group=chat, user=user).exists():
+                raise PermissionDenied()
 
-        if (not class_link) and (user.user_type != "teacher"):
-            raise PermissionDenied("Вы не привязаны к этому классу.")
-
-        return chat, class_link
+        return chat
 
     def get(self, request, uuid):
         user = request.user
-        chat, class_link = self._check_access(user, uuid)
+        chat = self._check_access(user, uuid)
 
         last_uuid = request.query_params.get('last')
 
@@ -1159,13 +1155,9 @@ class GetGroupPaginationView(APIView):
             raise PermissionDenied("Чат не найден.")
 
         # Проверяем привязку учителя к классу
-        class_link = ClassTeacherLink.objects.filter(
-            Q(group__parent_chat=chat) | Q(group__child_chat=chat),
-            teacher=user
-        ).first()
-
-        if not class_link:
-            raise PermissionDenied("Вы не привязаны к этому классу.")
+        if user.user_type != "teacher":
+            if not GroupLinkModel.objects.filter(group=chat, user=user).exists():
+                raise PermissionDenied()
 
         return chat
 
