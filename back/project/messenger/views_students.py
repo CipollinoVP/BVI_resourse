@@ -24,7 +24,6 @@ from .views_teacher import (
     PAGINATION_MESSENGER_SIZE,
 )
 
-
 CustomUser = get_user_model()
 
 
@@ -193,26 +192,30 @@ class GetTeacherPersonalChatView(APIView):
 
         teacher = self._check_access(user, uuid)
 
-        messages = (
+        # Используем список вместо среза QuerySet для безопасного доступа по индексам
+        messages_qs = (
             MessageInTeacherChatModel.objects
             .filter(
                 teacher=teacher,
                 user=user,
             )
-            .order_by("-created_at")[:PAGINATION_MESSENGER_SIZE]
+            .order_by("-created_at")
         )
 
-        if messages:
+        # Получаем список сообщений с ограничением
+        messages_list = list(messages_qs[:PAGINATION_MESSENGER_SIZE])
 
+        if messages_list:
+            # Безопасно используем индексы, так как список не пустой
             pagination_dict = {
-                "first": messages[-1].id,
-                "last": messages[0].id,
+                "first": messages_list[-1].id,
+                "last": messages_list[0].id,
             }
 
             has_next = MessageInTeacherChatModel.objects.filter(
                 teacher=teacher,
                 user=user,
-                created_at__lt=messages[-1].created_at,
+                created_at__lt=messages_list[-1].created_at,
             ).exists()
 
             pagination_dict["has_next"] = has_next
@@ -229,7 +232,7 @@ class GetTeacherPersonalChatView(APIView):
 
         unread_ids = []
 
-        for message in messages:
+        for message in messages_list:
 
             if message.from_teacher:
                 sender_name = teacher.surname
@@ -251,7 +254,6 @@ class GetTeacherPersonalChatView(APIView):
                 unread_ids.append(message.id)
 
         if unread_ids:
-
             MessageInTeacherChatModel.objects.filter(
                 id__in=unread_ids
             ).update(is_read=True)
@@ -550,8 +552,8 @@ class GetTeacherPersonalMessageMonitoringView(APIView):
             user=user
         ).order_by('-created_at')
 
-        messages = messages_qs[:PAGINATION_MESSENGER_SIZE]
-        messages_list = list(messages)
+        # Получаем список сообщений с ограничением
+        messages_list = list(messages_qs[:PAGINATION_MESSENGER_SIZE])
 
         if messages_list:
             pagination_dict = {
@@ -631,9 +633,9 @@ class GetTeacherPersonalPaginationView(APIView):
         teacher = get_teacher(uuid)
 
         earlier = (
-            request.query_params
-            .get("earlier", "true")
-            .lower() == "true"
+                request.query_params
+                .get("earlier", "true")
+                .lower() == "true"
         )
 
         current_limit = request.query_params.get(
@@ -641,7 +643,6 @@ class GetTeacherPersonalPaginationView(APIView):
         )
 
         if not current_limit:
-
             return Response(
                 {
                     "error": (
@@ -678,17 +679,17 @@ class GetTeacherPersonalPaginationView(APIView):
 
         if earlier:
 
-            messages = (
+            messages_qs = (
                 MessageInTeacherChatModel.objects
                 .filter(
                     teacher=teacher,
                     user=user,
                     created_at__lt=anchor_message.created_at,
                 )
-                .order_by("-created_at")[
-                    :PAGINATION_MESSENGER_SIZE
-                ]
+                .order_by("-created_at")
             )
+            # Получаем список для безопасного доступа по индексам
+            messages_list = list(messages_qs[:PAGINATION_MESSENGER_SIZE])
 
         # ----------------------------------------------------
         # Новые сообщения
@@ -696,27 +697,26 @@ class GetTeacherPersonalPaginationView(APIView):
 
         else:
 
-            messages = (
+            messages_qs = (
                 MessageInTeacherChatModel.objects
                 .filter(
                     teacher=teacher,
                     user=user,
                     created_at__gt=anchor_message.created_at,
                 )
-                .order_by("-created_at")[
-                    :PAGINATION_MESSENGER_SIZE
-                ]
+                .order_by("-created_at")
             )
+            messages_list = list(messages_qs[:PAGINATION_MESSENGER_SIZE])
 
         # ----------------------------------------------------
         # Pagination info
         # ----------------------------------------------------
 
-        if messages:
+        if messages_list:
 
             pagination_dict = {
-                "first": messages[-1].id,
-                "last": messages[0].id,
+                "first": messages_list[-1].id,
+                "last": messages_list[0].id,
             }
 
             has_previous = (
@@ -724,7 +724,7 @@ class GetTeacherPersonalPaginationView(APIView):
                 .filter(
                     teacher=teacher,
                     user=user,
-                    created_at__lt=messages[-1].created_at,
+                    created_at__lt=messages_list[-1].created_at,
                 )
                 .exists()
             )
@@ -734,7 +734,7 @@ class GetTeacherPersonalPaginationView(APIView):
                 .filter(
                     teacher=teacher,
                     user=user,
-                    created_at__gt=messages[0].created_at,
+                    created_at__gt=messages_list[0].created_at,
                 )
                 .exists()
             )
@@ -757,7 +757,7 @@ class GetTeacherPersonalPaginationView(APIView):
 
         messages_result = []
 
-        for message in messages:
+        for message in messages_list:
 
             if message.from_teacher:
                 sender_name = teacher.surname
@@ -791,7 +791,6 @@ class GetTeacherPersonalPaginationView(APIView):
 
 
 class StudentParentMainView(APIView):
-
     permission_classes = [
         IsAuthenticated,
     ]
