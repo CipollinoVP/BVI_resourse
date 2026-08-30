@@ -1,4 +1,5 @@
-import React, { useParams, useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams } from 'react-router-dom';
 import apiClient from '../../config/client'; // импортируем кастомный клиент
 
 const TeacherChat = () => {
