@@ -63,12 +63,12 @@ def get_chat_messages(user, teacher):
 
     Для parent/child:
         teacher = педагог
-        student = текущий пользователь
+        user = текущий пользователь
     """
 
     return MessageInTeacherChatModel.objects.filter(
         teacher=teacher,
-        student=user,
+        user=user,
     )
 
 
@@ -107,7 +107,7 @@ class GetTeacherChatsView(APIView):
                 MessageInTeacherChatModel.objects
                 .filter(
                     teacher=teacher,
-                    student=user,
+                    user=user,
                 )
                 .order_by("-created_at")
                 .first()
@@ -197,7 +197,7 @@ class GetTeacherPersonalChatView(APIView):
             MessageInTeacherChatModel.objects
             .filter(
                 teacher=teacher,
-                student=user,
+                user=user,
             )
             .order_by("-created_at")[:PAGINATION_MESSENGER_SIZE]
         )
@@ -211,7 +211,7 @@ class GetTeacherPersonalChatView(APIView):
 
             has_next = MessageInTeacherChatModel.objects.filter(
                 teacher=teacher,
-                student=user,
+                user=user,
                 created_at__lt=messages[-1].created_at,
             ).exists()
 
@@ -305,7 +305,7 @@ class GetTeacherPersonalChatView(APIView):
 
         message = MessageInTeacherChatModel.objects.create(
             teacher=teacher,
-            student=user,
+            user=user,
             from_teacher=False,
             message=text,
         )
@@ -360,7 +360,7 @@ class GetTeacherPersonalChatView(APIView):
             MessageInTeacherChatModel,
             id=uuid_changed,
             teacher=teacher,
-            student=user,
+            user=user,
         )
 
         # Родитель/ученик может редактировать только своё сообщение
@@ -428,7 +428,7 @@ class GetTeacherPersonalChatView(APIView):
             MessageInTeacherChatModel,
             id=uuid_deleted,
             teacher=teacher,
-            student=user,
+            user=user,
         )
 
         # Удалять можно только своё сообщение
@@ -480,7 +480,7 @@ class GetTeacherPersonalMessageMonitoringView(APIView):
         if memory_key not in lib_read_teacher or lib_read_teacher[memory_key] is None:
             latest_message = MessageInTeacherChatModel.objects.filter(
                 teacher=teacher,
-                student=user
+                user=user
             ).order_by('-created_at').first()
 
             if latest_message:
@@ -500,7 +500,7 @@ class GetTeacherPersonalMessageMonitoringView(APIView):
             anchor_message = MessageInTeacherChatModel.objects.get(id=last_uuid)
             new_messages = MessageInTeacherChatModel.objects.filter(
                 teacher=teacher,
-                student=user,
+                user=user,
                 created_at__gt=anchor_message.created_at
             ).order_by('created_at')
         except MessageInTeacherChatModel.DoesNotExist:
@@ -547,7 +547,7 @@ class GetTeacherPersonalMessageMonitoringView(APIView):
         """Полная инициализация/обновление для первой загрузки."""
         messages_qs = MessageInTeacherChatModel.objects.filter(
             teacher=teacher,
-            student=user
+            user=user
         ).order_by('-created_at')
 
         messages = messages_qs[:PAGINATION_MESSENGER_SIZE]
@@ -657,7 +657,7 @@ class GetTeacherPersonalPaginationView(APIView):
             anchor_message = MessageInTeacherChatModel.objects.get(
                 id=current_limit,
                 teacher=teacher,
-                student=user,
+                user=user,
             )
 
         except MessageInTeacherChatModel.DoesNotExist:
@@ -682,7 +682,7 @@ class GetTeacherPersonalPaginationView(APIView):
                 MessageInTeacherChatModel.objects
                 .filter(
                     teacher=teacher,
-                    student=user,
+                    user=user,
                     created_at__lt=anchor_message.created_at,
                 )
                 .order_by("-created_at")[
@@ -700,7 +700,7 @@ class GetTeacherPersonalPaginationView(APIView):
                 MessageInTeacherChatModel.objects
                 .filter(
                     teacher=teacher,
-                    student=user,
+                    user=user,
                     created_at__gt=anchor_message.created_at,
                 )
                 .order_by("-created_at")[
@@ -723,7 +723,7 @@ class GetTeacherPersonalPaginationView(APIView):
                 MessageInTeacherChatModel.objects
                 .filter(
                     teacher=teacher,
-                    student=user,
+                    user=user,
                     created_at__lt=messages[-1].created_at,
                 )
                 .exists()
@@ -733,7 +733,7 @@ class GetTeacherPersonalPaginationView(APIView):
                 MessageInTeacherChatModel.objects
                 .filter(
                     teacher=teacher,
-                    student=user,
+                    user=user,
                     created_at__gt=messages[0].created_at,
                 )
                 .exists()

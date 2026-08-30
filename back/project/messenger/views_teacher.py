@@ -477,14 +477,14 @@ class GetAdminPersonal(APIView):
         if not is_user_teacher:
             message = MessageInTeacherChatModel.objects.create(
                 teacher=student,
-                student=user,
+                user=user,
                 from_teacher=False,
                 message=text
             )
         else:
             message = MessageInTeacherChatModel.objects.create(
                 teacher=user,
-                student=student,
+                user=student,
                 from_teacher=True,
                 message=text
             )
