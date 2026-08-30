@@ -7,6 +7,9 @@ import { AuthProvider } from './context/AuthContext';
 import LoginPage from './Components/Login/LoginPage'
 import Header from './Components/Header/Header'
 import Footer from './Components/Footer/Footer'
+import GroupChat from './Components/Chat/GroupChat'
+import StudentChat from './Components/Chat/StudentChat'
+import { ProtectedRoute } from './Components/ProtectedRoute'
 
 
 function FrontApp() {
@@ -18,6 +21,22 @@ function FrontApp() {
                         <Routes>
                             <Route exact={true} path={"/"} element={<Main/>}/>
                             <Route element={<LoginPage/>} path="/login"/>
+                            <Route
+                                path="/group_chat/:uuid"
+                                element={
+                                    <ProtectedRoute>
+                                        <GroupChat />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/personal_chat/:uuid"
+                                element={
+                                    <ProtectedRoute>
+                                        <StudentChat />
+                                    </ProtectedRoute>
+                                }
+                            />
                          </Routes>
                     </div>
                     <Footer/>

@@ -267,12 +267,12 @@ const Header = () => {
           {/* Header Actions */}
           <div className="flex items-center gap-3">
             <Link
-              to="tel:+79161416149"
+              to="tel:+79160066021"
               className="hidden sm:inline-flex items-center gap-2 px-3 py-2 rounded-full text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               aria-label="Позвонить"
             >
               <Phone className="size-3.5 text-primary" />
-              <span>+7 (916) 141-61-49</span>
+              <span>+7 (916) 006-60-21</span>
             </Link>
 
             {!isAuthenticated ? (

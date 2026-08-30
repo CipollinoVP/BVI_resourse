@@ -882,7 +882,7 @@ class GetMessageMonitoringView(APIView):
         unread_ids = []
 
         for message in new_messages:
-            sender_name = "me" if message.user == user else message.user.surname
+            sender_name = "me" if message.user == user else message.user.chat_view
             messages_result.append({
                 "id": message.id,
                 "text": message.message,  # ✅ Добавляем текст!
@@ -1122,9 +1122,9 @@ class GetPersonalMessageMonitoringView(APIView):
         messages_result = []
         for message in messages_list:
             if message.from_teacher:
-                sender_name = "me" if message.teacher == user else message.teacher.surname
+                sender_name = "me" if message.teacher == user else message.teacher.chat_view
             else:
-                sender_name = "me" if message.user == user else message.user.surname
+                sender_name = "me" if message.user == user else message.user.chat_view
 
             messages_result.append({
                 "id": message.id,

@@ -4,4 +4,4 @@ hello: docker-compose.production.yml
 	docker service rm bvi_back
 	docker service rm bvi_db
 	docker service rm bvi_proxy
-
+	docker stack deploy -c docker-compose.production.yml bvi

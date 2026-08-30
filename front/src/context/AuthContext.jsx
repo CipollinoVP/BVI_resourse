@@ -27,7 +27,7 @@ export const AuthProvider = ({ children }) => {
 
             if ((typeData?.type !== 'child') && (typeData?.type !== 'parent')) {
                 throw new Error(
-                    'Доступ разрешен только для преподавателей.'
+                    'Доступ запрещён. Обратитесь в поддержку: info@bviisostudia.ru'
                 );
             }
 

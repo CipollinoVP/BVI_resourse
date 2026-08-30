@@ -152,7 +152,7 @@ const ClassCard = ({ classItem }) => {
         <h2>{classData.name}</h2>
 
         <NavLink
-          to={`/chat/group/${chat.uuid}/`}
+          to={`/group_chat/${chat.uuid}/`}
           className="main-chat-link"
         >
           Открыть чат
@@ -313,7 +313,7 @@ const Teachers = ({ teachers }) => {
       {teachers.map((teacher) => (
         <NavLink
           key={teacher.uuid}
-          to={`/chat/teacher/${teacher.uuid}/`}
+          to={`/personal_chat/${teacher.uuid}/`}
           className="teacher-card"
         >
           {teacher.fio}

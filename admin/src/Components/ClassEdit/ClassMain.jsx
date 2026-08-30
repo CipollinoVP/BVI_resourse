@@ -65,7 +65,7 @@ const ClassMain = () => {
           <ul style={styles.list}>
             {sort_parents?.map((parent) => (
               <li key={parent.uuid} style={styles.listItem}>
-                <span>{parent.surname || 'Без фамилии'}</span>
+                <NavLink to={`/personal_chat/${parent.uuid}`}><span>{parent.surname || 'Без фамилии'}</span></NavLink>
                 <small style={{ color: '#6c757d' }}>{parent.last_message || 'Нет сообщений'}</small>
               </li>
             ))}
@@ -92,7 +92,7 @@ const ClassMain = () => {
           <ul style={styles.list}>
             {sort_children?.map((child) => (
               <li key={child.uuid} style={styles.listItem}>
-                <span>{child.surname || 'Ученик без фамилии'}</span>
+                <NavLink to={`/personal_chat/${child.uuid}`}><span>{child.surname || 'Ученик без фамилии'}</span></NavLink>
                 <small style={{ color: '#6c757d' }}>{child.last_message || 'Нет сообщений'}</small>
               </li>
             ))}

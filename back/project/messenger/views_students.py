@@ -464,128 +464,104 @@ class GetTeacherPersonalChatView(APIView):
 
 class GetTeacherPersonalMessageMonitoringView(APIView):
     """
-    Мониторинг изменений личного чата.
-
-    GET /.../teachers/chats/<uuid>/monitoring/?last=<message_uuid>
-
-    uuid = UUID педагога.
-
-    Если новых сообщений нет:
-        {"message": "No"}
-
-    Если появились изменения:
-        возвращается список последних сообщений.
+    Мониторинг изменений личного чата ученика/родителя с преподавателем.
     """
-
     permission_classes = [IsAuthenticated]
 
     def get(self, request, uuid):
-
         user = request.user
-
         check_parent_child(user)
-
         teacher = get_teacher(uuid)
 
         last_uuid = request.query_params.get("last")
+        memory_key = (user.id, teacher.id)
 
-        memory_key = (
-            user.id,
-            teacher.id,
-        )
-
-        # ----------------------------------------------------
-        # Уже есть состояние мониторинга
-        # ----------------------------------------------------
-
-        if memory_key in lib_read_teacher:
-
-            last_known = lib_read_teacher[memory_key]
-
-            if last_known is None:
-
-                return Response(
-                    {
-                        "message": "No"
-                    },
-                    status=status.HTTP_200_OK,
-                )
-
-            if str(last_known) == str(last_uuid):
-
-                return Response(
-                    {
-                        "message": "No"
-                    },
-                    status=status.HTTP_200_OK,
-                )
-
-            return self._build_response(
-                user=user,
+        # 1. Если в памяти нет записи или она None - инициализируем
+        if memory_key not in lib_read_teacher or lib_read_teacher[memory_key] is None:
+            latest_message = MessageInTeacherChatModel.objects.filter(
                 teacher=teacher,
-            )
+                student=user
+            ).order_by('-created_at').first()
 
-        # ----------------------------------------------------
-        # Первый запрос мониторинга
-        # ----------------------------------------------------
+            if latest_message:
+                lib_read_teacher[memory_key] = latest_message.id
+                # Возвращаем последнюю пачку сообщений с метаданными и текстом
+                return self._build_response(user=user, teacher=teacher)
+            else:
+                lib_read_teacher[memory_key] = None
+                return Response({"message": "No", "data": []}, status=status.HTTP_200_OK)
 
-        query = (
-            MessageInTeacherChatModel.objects
-            .filter(
+        # 2. Если сохраненный ID совпадает с last_uuid — новых сообщений нет
+        if str(lib_read_teacher[memory_key]) == str(last_uuid):
+            return Response({"message": "No", "data": []}, status=status.HTTP_200_OK)
+
+        # 3. Получаем ТОЛЬКО новые сообщения (появившиеся после last_uuid)
+        try:
+            anchor_message = MessageInTeacherChatModel.objects.get(id=last_uuid)
+            new_messages = MessageInTeacherChatModel.objects.filter(
                 teacher=teacher,
                 student=user,
-            )
-            .order_by("-created_at")
-        )
+                created_at__gt=anchor_message.created_at
+            ).order_by('created_at')
+        except MessageInTeacherChatModel.DoesNotExist:
+            return self._build_response(user=user, teacher=teacher)
 
-        if query.exists():
+        # Если новых сообщений нет — возвращаем "No"
+        if not new_messages.exists():
+            return Response({"message": "No", "data": []}, status=status.HTTP_200_OK)
 
-            lib_read_teacher[memory_key] = query.first().id
+        # Обновляем последний прочитанный ID в памяти
+        lib_read_teacher[memory_key] = new_messages.last().id
 
-            return self._build_response(
-                user=user,
-                teacher=teacher,
-            )
+        # Формируем ответ только с новыми сообщениями и текстом
+        messages_result = []
+        unread_ids = []
 
-        lib_read_teacher[memory_key] = None
+        for message in new_messages:
+            sender_name = teacher.surname if message.from_teacher else "me"
 
-        return Response(
-            {
-                "message": "No"
-            },
-            status=status.HTTP_200_OK,
-        )
+            messages_result.append({
+                "id": message.id,
+                "text": message.message,  # Добавлен текст сообщения
+                "sender": sender_name,
+                "created_at": message.created_at.isoformat(),
+                "is_read": message.is_read,
+            })
+
+            # Проставляем прочтение для новых сообщений от учителей
+            if message.from_teacher and not message.is_read:
+                unread_ids.append(message.id)
+
+        if unread_ids:
+            MessageInTeacherChatModel.objects.filter(id__in=unread_ids).update(is_read=True)
+
+        data = {
+            "message": "Update",
+            "new_messages": messages_result,
+            "last_id": lib_read_teacher[memory_key]
+        }
+
+        return Response(data, status=status.HTTP_200_OK)
 
     def _build_response(self, user, teacher):
+        """Полная инициализация/обновление для первой загрузки."""
+        messages_qs = MessageInTeacherChatModel.objects.filter(
+            teacher=teacher,
+            student=user
+        ).order_by('-created_at')
 
-        messages = (
-            MessageInTeacherChatModel.objects
-            .filter(
-                teacher=teacher,
-                student=user,
-            )
-            .order_by("-created_at")[
-                :PAGINATION_MESSENGER_SIZE
-            ]
-        )
+        messages = messages_qs[:PAGINATION_MESSENGER_SIZE]
+        messages_list = list(messages)
 
-        if messages:
-
+        if messages_list:
             pagination_dict = {
-                "first": messages[-1].id,
-                "last": messages[0].id,
+                "first": messages_list[-1].id,
+                "last": messages_list[0].id,
+                "has_next": messages_qs.filter(
+                    created_at__lt=messages_list[-1].created_at
+                ).exists()
             }
-
-            has_next = MessageInTeacherChatModel.objects.filter(
-                teacher=teacher,
-                student=user,
-                created_at__lt=messages[-1].created_at,
-            ).exists()
-
-            pagination_dict["has_next"] = has_next
-
         else:
-
             pagination_dict = {
                 "first": None,
                 "last": None,
@@ -593,39 +569,34 @@ class GetTeacherPersonalMessageMonitoringView(APIView):
             }
 
         messages_result = []
+        unread_ids = []
 
-        for message in messages:
+        for message in messages_list:
+            sender_name = teacher.surname if message.from_teacher else "me"
 
-            if message.from_teacher:
-                sender_name = teacher.surname
-            else:
-                sender_name = "me"
+            messages_result.append({
+                "id": message.id,
+                "text": message.message,  # Добавлен текст сообщения
+                "sender": sender_name,
+                "created_at": message.created_at.isoformat(),
+                "is_read": message.is_read,
+            })
 
-            message_result = [
-                message.id,
-                sender_name,
-                message.created_at,
-                message.is_read,
-            ]
+            if message.from_teacher and not message.is_read:
+                unread_ids.append(message.id)
 
-            messages_result.append(message_result)
+        if unread_ids:
+            MessageInTeacherChatModel.objects.filter(id__in=unread_ids).update(is_read=True)
 
         data = {
             "message": "Update",
-            "meta": [
-                "UUID",
-                "arriver",
-                "sent_datetime",
-                "is_read",
-            ],
+            "meta": ["UUID", "text", "arriver", "sent_datetime", "is_read"],
             "messages": messages_result,
             "pagination": pagination_dict,
+            "last_id": messages_list[0].id if messages_list else None
         }
 
-        return Response(
-            data,
-            status=status.HTTP_200_OK,
-        )
+        return Response(data, status=status.HTTP_200_OK)
 
 
 # ============================================================
