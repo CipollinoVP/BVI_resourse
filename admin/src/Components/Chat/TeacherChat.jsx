@@ -21,6 +21,10 @@ const TeacherChat = () => {
       checkMonitoring();
     }, 3000);
 
+    // ИСПРАВЛЕНО: возвращаем функцию очистки, а не JSX
+    return () => clearInterval(interval);
+  }, [companionUuid]);
+
     return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: 'min(720px, calc(100vh - 140px))',
