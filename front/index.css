@@ -1,0 +1,155 @@
+/* ============================================
+   1. ИМПОРТ ШРИФТОВ
+   ============================================ */
+@import url("https://fonts.googleapis.com/css2?family=Nunito:wght@300;400;500;600;700&family=Podkova:wght@300;400;500;600;700&family=JetBrains+Mono:wght@300;400;500;600;700&display=swap");
+
+/* ============================================
+   2. TAILWIND
+   ============================================ */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+/* ============================================
+   4. CSS ПЕРЕМЕННЫЕ (ТОЛЬКО HSL)
+   ============================================ */
+:root {
+  --background: 42 45% 97%;
+  --foreground: 218 30% 18%;
+  --card: 0 0% 100%;
+  --card-foreground: 218 30% 18%;
+  --popover: 0 0% 100%;
+  --popover-foreground: 218 30% 18%;
+  --primary: 215 75% 42%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 5 78% 54%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 38 35% 92%;
+  --muted-foreground: 218 15% 42%;
+  --accent: 44 92% 52%;
+  --accent-foreground: 218 30% 14%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 0 0% 100%;
+  --border: 38 28% 86%;
+  --input: 38 30% 90%;
+  --ring: 215 75% 42%;
+  --chart-1: 215 75% 42%;
+  --chart-2: 5 78% 54%;
+  --chart-3: 44 92% 52%;
+  --chart-4: 158 55% 38%;
+  --chart-5: 28 75% 52%;
+  --sidebar: 42 40% 95%;
+  --sidebar-foreground: 218 30% 18%;
+  --sidebar-primary: 215 75% 42%;
+  --sidebar-primary-foreground: 0 0% 100%;
+  --sidebar-accent: 38 35% 90%;
+  --sidebar-accent-foreground: 218 30% 18%;
+  --sidebar-border: 38 28% 86%;
+  --sidebar-ring: 215 75% 42%;
+  --color-logo: #000000;
+  --tw-prose-body: var(--foreground);
+  --tw-prose-invert-body: var(--foreground);
+  --font-sans: Nunito, sans-serif;
+  --font-serif: Podkova, serif;
+  --font-mono: JetBrains Mono, monospace;
+  --font-default: var(--font-sans);
+  --radius: 1rem;
+  --shadow-x: 0px;
+  --shadow-y: 4px;
+  --shadow-blur: 16px;
+  --shadow-spread: -4px;
+  --shadow-opacity: 0.1;
+  --shadow-color: hsl(38 30% 40%);
+  --shadow-2xs: 0px 1px 3px 0px hsl(38 30% 40% / 0.05);
+  --shadow-xs: 0px 1px 3px 0px hsl(38 30% 40% / 0.05);
+  --shadow-sm: 0px 1px 3px 0px hsl(38 30% 40% / 0.1), 0px 1px 2px -1px hsl(38 30% 40% / 0.1);
+  --shadow: 0px 1px 3px 0px hsl(38 30% 40% / 0.1), 0px 1px 2px -1px hsl(38 30% 40% / 0.1);
+  --shadow-md: 0px 1px 3px 0px hsl(38 30% 40% / 0.1), 0px 2px 4px -1px hsl(38 30% 40% / 0.1);
+  --shadow-lg: 0px 1px 3px 0px hsl(38 30% 40% / 0.1), 0px 4px 6px -1px hsl(38 30% 40% / 0.1);
+  --shadow-xl: 0px 1px 3px 0px hsl(38 30% 40% / 0.1), 0px 8px 10px -1px hsl(38 30% 40% / 0.1);
+  --shadow-2xl: 0px 1px 3px 0px hsl(38 30% 40% / 0.25);
+  --shadow-3xl: 0px 16px 24px -4px hsl(38 30% 40% / 0.3);
+  --shadow-4xl: 0px 32px 48px -8px hsl(38 30% 40% / 0.35);
+  --tracking-normal: 0.01em;
+}
+
+body {
+  letter-spacing: var(--tracking-normal);
+}
+
+/* ============================================
+   7. LAYER BASE
+   ============================================ */
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    scrollbar-gutter: stable;
+    letter-spacing: var(--tracking-normal);
+  }
+}
+
+/* ============================================
+   8. LAYER COMPONENTS
+   ============================================ */
+@layer components {
+  button {
+    cursor: pointer;
+  }
+  [class*="border"] {
+    @apply border-border;
+  }
+}
+
+/* ============================================
+   9. LAYER UTILITIES
+   ============================================ */
+@layer utilities {
+  .hide-scrollbar {
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+
+  .perspective-distant {
+    perspective: 1000px;
+  }
+  .transform-3d {
+    transform-style: preserve-3d;
+  }
+  .backface-hidden {
+    backface-visibility: hidden;
+  }
+  .rotate-y-180 {
+    transform: rotateY(180deg);
+  }
+}
+
+/* ============================================
+   10. ГЛОБАЛЬНЫЕ СТИЛИ
+   ============================================ */
+html body[data-scroll-locked] {
+  overflow-y: scroll !important;
+  --removed-body-scroll-bar-size: 0 !important;
+  margin-right: 0 !important;
+}
+
+html body[data-scroll-locked]#explorer {
+  margin-top: 0px !important;
+}
+
+html body[data-scroll-locked] #wrapper {
+  margin-top: 60px !important;
+}
+
+body {
+  letter-spacing: var(--tracking-normal);
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}

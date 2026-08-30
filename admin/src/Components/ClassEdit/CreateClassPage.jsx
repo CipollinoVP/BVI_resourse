@@ -17,7 +17,7 @@ const CreateClassPage = () => {
     try {
       const createdClass = await classService.createClass(name.trim());
       // Переход на страницу редактирования созданного класса
-      navigate(`/class/${createdClass.uuid}/edit`);
+      navigate(`/`);
     } catch (err) {
       setError(err.response?.data?.detail || 'Ошибка при создании класса');
     } finally {

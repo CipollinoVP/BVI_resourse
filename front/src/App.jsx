@@ -4,17 +4,15 @@ import {compose} from 'redux';
 import {BrowserRouter, Route, Routes} from 'react-router-dom'
 import Main from './Components/Main/Main'
 import { AuthProvider } from './context/AuthContext';
-import './App.css';
 import LoginPage from './Components/Login/LoginPage'
 import Header from './Components/Header/Header'
+import Footer from './Components/Footer/Footer'
 
 
 function FrontApp() {
-    const [styl, setStyle] = useState("App")
-
     return (<BrowserRouter>
                 <AuthProvider>
-                <div className={styl}>
+                <div>
                     <Header/>
                     <div class='body'>
                         <Routes>
@@ -22,6 +20,7 @@ function FrontApp() {
                             <Route element={<LoginPage/>} path="/login"/>
                          </Routes>
                     </div>
+                    <Footer/>
                 </div>
                 </AuthProvider>
             </BrowserRouter>
