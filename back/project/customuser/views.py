@@ -84,6 +84,7 @@ class TeacherCreateUserView(APIView):
                     "html_message": html_content,
                 }
             )
+            print(request.data)
 
         return Response(
             {
