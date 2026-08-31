@@ -2,18 +2,18 @@ import React, { useState, useEffect, useCallback } from 'react';
 import apiClient from '../../config/client';
 import { useAuth } from '../../context/AuthContext';
 
-export const AnnouncementsWidget = ({ className = '' }) => {
-  const { isAuthenticated } = useAuth(); // Реактивный статус из контекста
+const AnnouncementsWidget = ({ className = '' }) => {
+  const { isAuthenticated } = useAuth();
   const [announcements, setAnnouncements] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [ordering, setOrdering] = useState('-date');
+  const [expandedIds, setExpandedIds] = useState(new Set());
 
   const fetchAnnouncements = useCallback(async () => {
     setLoading(true);
     setError(null);
 
-    // Применяем целевую ручку в зависимости от наличия авторизации
     const endpoint = !isAuthenticated ? 'students/announcement/default/' : '/students/announcement/user/';
 
     try {
@@ -22,7 +22,6 @@ export const AnnouncementsWidget = ({ className = '' }) => {
       });
       setAnnouncements(response.data);
     } catch (err) {
-      // Фолбэк на публичную ручку, если приватная вернула ошибку
       if (isAuthenticated) {
         try {
           const fallbackResponse = await apiClient.get('students/announcement/default/', {
@@ -40,13 +39,38 @@ export const AnnouncementsWidget = ({ className = '' }) => {
     }
   }, [isAuthenticated, ordering]);
 
-  // Запрос перезапускается при логине/выходе пользователя или смене сортировки
   useEffect(() => {
     fetchAnnouncements();
   }, [fetchAnnouncements]);
 
   const toggleOrdering = () => {
     setOrdering((prev) => (prev === '-date' ? 'date' : '-date'));
+  };
+
+  const toggleExpand = (id) => {
+    setExpandedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  // Функция для проверки, нужно ли показывать кнопку "Читать полностью"
+  const shouldShowExpandButton = (htmlContent) => {
+    if (!htmlContent) return false;
+    // Удаляем HTML-теги для подсчета символов
+    const text = htmlContent.replace(/<[^>]*>/g, '');
+    return text.length > 150; // порог
+  };
+
+  // Функция для очистки HTML от тегов для безопасного отображения в preview
+  const stripHtml = (html) => {
+    if (!html) return '';
+    return html.replace(/<[^>]*>/g, '');
   };
 
   return (
@@ -84,49 +108,83 @@ export const AnnouncementsWidget = ({ className = '' }) => {
 
         {!loading && !error && announcements.length > 0 && (
           <div className="space-y-4">
-            {announcements.map((item) => (
-              <article
-                key={item.id}
-                className="p-4 rounded-xl bg-background border border-border hover:border-primary/50 transition-all shadow-xs"
-              >
-                <div className="flex flex-col md:flex-row gap-4">
-                  {item.img && (
-                    <img
-                      src={item.img}
-                      alt={item.title}
-                      className="w-full md:w-32 h-32 object-cover rounded-lg flex-shrink-0"
-                    />
-                  )}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2 mb-1">
-                      <h3 className="text-base font-semibold truncate text-foreground">
-                        {item.title}
-                      </h3>
-                      {item.for_all && (
-                        <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent/20 text-accent-foreground flex-shrink-0">
-                          Общее
-                        </span>
-                      )}
+            {announcements.map((item) => {
+              const isExpanded = expandedIds.has(item.id);
+              const showExpandButton = shouldShowExpandButton(item.announce);
+              const plainText = stripHtml(item.announce);
+
+              return (
+                <article
+                  key={item.id}
+                  className="p-4 rounded-xl bg-background border border-border hover:border-primary/50 transition-all shadow-xs"
+                >
+                  <div className="flex flex-col md:flex-row gap-4">
+                    {item.img && (
+                      <img
+                        src={item.img}
+                        alt={item.title}
+                        className="w-full md:w-32 h-32 object-cover rounded-lg flex-shrink-0"
+                      />
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between gap-2 mb-1">
+                        <h3 className="text-base font-semibold truncate text-foreground">
+                          {item.title}
+                        </h3>
+                        {item.for_all && (
+                          <span className="text-[10px] font-semibold uppercase tracking-wider px-2 py-0.5 rounded-full bg-accent/20 text-accent-foreground flex-shrink-0">
+                            Общее
+                          </span>
+                        )}
+                      </div>
+
+                      <p className="text-xs text-muted-foreground mb-2">
+                        {new Date(item.date).toLocaleDateString('ru-RU', {
+                          day: 'numeric',
+                          month: 'long',
+                          year: 'numeric',
+                          hour: '2-digit',
+                          minute: '2-digit'
+                        })}
+                      </p>
+
+                      {/* Контент объявления с возможностью раскрытия */}
+                      <div className="space-y-2">
+                        <div
+                          className={`text-sm text-foreground/90 whitespace-pre-line ${
+                            !isExpanded ? 'line-clamp-3' : ''
+                          }`}
+                          dangerouslySetInnerHTML={{ __html: item.announce }}
+                        />
+
+                        {showExpandButton && (
+                          <button
+                            onClick={() => toggleExpand(item.id)}
+                            className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1 mt-1"
+                          >
+                            {isExpanded ? (
+                              <>
+                                <span>Скрыть</span>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+                                </svg>
+                              </>
+                            ) : (
+                              <>
+                                <span>Читать полностью</span>
+                                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                </svg>
+                              </>
+                            )}
+                          </button>
+                        )}
+                      </div>
                     </div>
-
-                    <p className="text-xs text-muted-foreground mb-2">
-                      {new Date(item.date).toLocaleDateString('ru-RU', {
-                        day: 'numeric',
-                        month: 'long',
-                        year: 'numeric',
-                        hour: '2-digit',
-                        minute: '2-digit'
-                      })}
-                    </p>
-
-                    <p
-                        className="text-sm text-foreground/90 whitespace-pre-line line-clamp-3"
-                        dangerouslySetInnerHTML={{ __html: item.announce }}
-                    />
                   </div>
-                </div>
-              </article>
-            ))}
+                </article>
+              );
+            })}
           </div>
         )}
       </div>
@@ -134,4 +192,4 @@ export const AnnouncementsWidget = ({ className = '' }) => {
   );
 };
 
-export default AnnouncementsWidget;
+export default AnnouncementsWidget

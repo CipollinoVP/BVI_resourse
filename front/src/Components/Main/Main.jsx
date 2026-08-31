@@ -102,7 +102,7 @@ const Main = () => {
               Учебный кабинет
             </h1>
             <p className="text-sm text-muted-foreground">
-              Ваша успеваемость, расписание и важные объявления
+              Ваше, расписание и важные объявления
             </p>
           </div>
 
@@ -271,7 +271,24 @@ const ScheduleList = ({ schedule }) => {
 // =============================================================
 // КОМПОНЕНТ: ОБЪЯВЛЕНИЯ
 // =============================================================
+// =============================================================
+// КОМПОНЕНТ: ОБЪЯВЛЕНИЯ (с раскрытием)
+// =============================================================
 const AnnouncementsList = ({ announcements, emptyMessage, isGlobal = false }) => {
+  const [expandedIds, setExpandedIds] = useState(new Set());
+
+  const toggleExpand = (uuid) => {
+    setExpandedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(uuid)) {
+        newSet.delete(uuid);
+      } else {
+        newSet.add(uuid);
+      }
+      return newSet;
+    });
+  };
+
   if (!announcements?.length) {
     return (
       <div className="p-4 rounded-xl bg-muted/40 text-center text-sm text-muted-foreground">
@@ -282,49 +299,81 @@ const AnnouncementsList = ({ announcements, emptyMessage, isGlobal = false }) =>
 
   return (
     <div className="space-y-3">
-      {announcements.map((item) => (
-        <article
-          key={item.uuid}
-          className="p-4 bg-background border border-border rounded-xl shadow-2xs hover:border-primary/30 transition-all space-y-2"
-        >
-          {item.img && (
-            <img
-              src={item.img}
-              alt=""
-              className="w-full h-36 object-cover rounded-lg mb-2"
-            />
-          )}
+      {announcements.map((item) => {
+        const isExpanded = expandedIds.has(item.uuid);
+        const hasLongText = item.announce && item.announce.length > 150; // порог для показа кнопки
 
-          <div className="flex items-center justify-between gap-2">
-            <h4 className="text-sm font-bold text-foreground line-clamp-1">
-              {item.title}
-            </h4>
-            {isGlobal && (
-              <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-accent/20 text-accent-foreground rounded-md flex-shrink-0">
-                Школа
-              </span>
+        return (
+          <article
+            key={item.uuid}
+            className="p-4 bg-background border border-border rounded-xl shadow-2xs hover:border-primary/30 transition-all space-y-2"
+          >
+            {item.img && (
+              <img
+                src={item.img}
+                alt=""
+                className="w-full h-36 object-cover rounded-lg mb-2"
+              />
             )}
-          </div>
 
-          <p className="text-[11px] text-muted-foreground font-mono">
-            {new Date(item.date).toLocaleDateString('ru-RU', {
-              day: 'numeric',
-              month: 'long',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </p>
+            <div className="flex items-center justify-between gap-2">
+              <h4 className="text-sm font-bold text-foreground line-clamp-1">
+                {item.title}
+              </h4>
+              {isGlobal && (
+                <span className="text-[9px] font-bold uppercase px-1.5 py-0.5 bg-accent/20 text-accent-foreground rounded-md flex-shrink-0">
+                  Школа
+                </span>
+              )}
+            </div>
 
-          {item.announce && (
-            <div
-              className="text-xs text-foreground/80 line-clamp-3 leading-relaxed"
-              dangerouslySetInnerHTML={{
-                __html: item.announce,
-              }}
-            />
-          )}
-        </article>
-      ))}
+            <p className="text-[11px] text-muted-foreground font-mono">
+              {new Date(item.date).toLocaleDateString('ru-RU', {
+                day: 'numeric',
+                month: 'long',
+                hour: '2-digit',
+                minute: '2-digit'
+              })}
+            </p>
+
+            {item.announce && (
+              <div className="space-y-2">
+                <div
+                  className={`text-xs text-foreground/80 leading-relaxed ${
+                    !isExpanded ? 'line-clamp-3' : ''
+                  }`}
+                  dangerouslySetInnerHTML={{
+                    __html: item.announce,
+                  }}
+                />
+
+                {hasLongText && (
+                  <button
+                    onClick={() => toggleExpand(item.uuid)}
+                    className="text-xs font-semibold text-primary hover:text-primary/80 transition-colors flex items-center gap-1"
+                  >
+                    {isExpanded ? (
+                      <>
+                        <span>Скрыть</span>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+                        </svg>
+                      </>
+                    ) : (
+                      <>
+                        <span>Читать полностью</span>
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                )}
+              </div>
+            )}
+          </article>
+        );
+      })}
     </div>
   );
 };
