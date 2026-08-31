@@ -766,6 +766,7 @@ class GetTeacherPersonalPaginationView(APIView):
 
             message_result = [
                 message.id,
+                message.message,  # ✅ ИСПРАВЛЕНО: Добавлен текст сообщения
                 sender_name,
                 message.created_at,
                 message.is_read,
@@ -776,6 +777,7 @@ class GetTeacherPersonalPaginationView(APIView):
         data = {
             "meta": [
                 "UUID",
+                "text",
                 "arriver",
                 "sent_datetime",
                 "is_read",

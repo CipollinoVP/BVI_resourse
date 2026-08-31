@@ -58,7 +58,7 @@ def get_info_about_users(group_local: GroupModel, group_global: ClassModel, type
     for participant in participants:
         participant_result = {
             "uuid": participant.id,
-            "surname": participant.surname
+            "surname": participant.bvi_view
         }
         last_messages = MessageInTeacherChatModel.objects.filter(user=participant).order_by('-created_at')
         if last_messages.count() == 0:
@@ -482,6 +482,7 @@ class GetAdminPersonal(APIView):
                 from_teacher=False,
                 message=text
             )
+            lib_read_teacher[(user.id, student.id)] = message.id
         else:
             message = MessageInTeacherChatModel.objects.create(
                 teacher=user,
@@ -489,12 +490,13 @@ class GetAdminPersonal(APIView):
                 from_teacher=True,
                 message=text
             )
+            lib_read_teacher[(user.id, student.id)] = message.id
+
         data = {
             "uuid": message.id,
             "text": message.message
         }
-        lib_read_teacher[(user.id, student.id)] = message.id
-        return Response({"data": data}, status=status.HTTP_204_NO_CONTENT)
+        return Response({"data": data}, status=status.HTTP_201_CREATED)
 
 
     def patch(self, request, uuid):
@@ -880,7 +882,7 @@ class GetMessageMonitoringView(APIView):
                 return Response({"message": "No", "data": []}, status=status.HTTP_200_OK)
 
         # Если есть сохраненный ID и он совпадает с last_uuid - новых сообщений нет
-        if lib_read_chat[chat.id] == last_uuid:
+        if str(lib_read_chat[chat.id]) == str(last_uuid):
             return Response({"message": "No", "data": []}, status=status.HTTP_200_OK)
 
         # Получаем ТОЛЬКО новые сообщения (после last_uuid)
@@ -1064,17 +1066,19 @@ class GetPersonalMessageMonitoringView(APIView):
                 return Response({"message": "No", "data": []}, status=status.HTTP_200_OK)
 
         # Если есть сохраненный ID и он совпадает с last_uuid - новых сообщений нет
-        if lib_read_teacher[memory_key] == last_uuid:
+        if str(lib_read_teacher[memory_key]) == str(last_uuid):
             return Response({"message": "No", "data": []}, status=status.HTTP_200_OK)
 
         # Получаем ТОЛЬКО новые сообщения (после last_uuid)
-        new_messages = MessageInTeacherChatModel.objects.filter(
-            teacher=teacher,
-            user=student,
-            created_at__gt=MessageInTeacherChatModel.objects.get(
-                id=last_uuid
-            ).created_at
-        ).order_by('created_at')  # Сортируем по возрастанию (старые -> новые)
+        try:
+            anchor_message = MessageInTeacherChatModel.objects.get(id=last_uuid)
+            new_messages = MessageInTeacherChatModel.objects.filter(
+                teacher=teacher,
+                user=student,
+                created_at__gt=anchor_message.created_at
+            ).order_by('created_at')  # Сортируем по возрастанию (старые -> новые)
+        except MessageInTeacherChatModel.DoesNotExist:
+            return self._build_personal_response(user, companion, is_teacher=teacher_status)
 
         # Если новых сообщений нет - возвращаем пустой ответ
         if not new_messages.exists():
@@ -1375,49 +1379,3 @@ class GetPersonalPaginationView(APIView):
         }
 
         return Response(data, status=status.HTTP_200_OK)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

@@ -28,6 +28,10 @@ class CustomUser(AbstractUser):
     def chat_view(self):
         return f"{self.surname} {self.name[0]}."
 
+    @property
+    def bvi_view(self):
+        return f"{self.surname} {self.name} ({self.commentary})"
+
     def __str__(self):
         return self.email
 

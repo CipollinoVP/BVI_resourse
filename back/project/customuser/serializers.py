@@ -11,6 +11,7 @@ class TeacherCreateUserSerializer(serializers.ModelSerializer):
             'name',
             'surname',
             'user_type',
+            'commentary'
         ]
 
     def validate_user_type(self, value):
