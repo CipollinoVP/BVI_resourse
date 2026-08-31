@@ -143,6 +143,7 @@ function MobileNavList({ items, onItemClick }) {
 // Leaf consumer for mobile drawer navigation
 function MobileMenuConsumer({ onClose }) {
   const { menuItems, loading } = useMenu();
+  const { isAuthenticated, logout } = useAuth();
 
   if (loading) {
     return (
