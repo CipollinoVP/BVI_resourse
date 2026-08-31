@@ -1,3 +1,4 @@
+// LoginPage.jsx
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
@@ -23,11 +24,11 @@ const LoginFormContent = () => {
     control,
     setValue,
     getValues,
+    setError: setFormError,
   } = useWvcForm();
 
-  // Отключаем автоматическую отправку через FormProvider
   const onSubmit = async (data) => {
-    // Проверяем, что данные есть
+    // Валидация на клиенте
     if (!data.username || !data.password) {
       setLocalError('Пожалуйста, заполните все поля');
       return;
@@ -40,10 +41,30 @@ const LoginFormContent = () => {
       await login(data.username, data.password);
       navigate('/');
     } catch (err) {
+      console.error('Login error:', err);
+
+      // Обработка различных типов ошибок
       if (err.response?.status === 401) {
-        setLocalError('Неверное имя пользователя или пароль');
+        setLocalError('Неверный email или пароль');
+      } else if (err.response?.status === 400) {
+        // Обработка ошибок валидации от сервера
+        const errorData = err.response.data;
+        if (errorData.detail) {
+          setLocalError(errorData.detail);
+        } else if (errorData.non_field_errors) {
+          setLocalError(errorData.non_field_errors[0]);
+        } else if (errorData.email) {
+          setLocalError(errorData.email[0]);
+        } else if (errorData.password) {
+          setLocalError(errorData.password[0]);
+        } else {
+          setLocalError('Ошибка валидации данных');
+        }
+      } else if (err.message) {
+        // Ошибка из AuthContext (например, "Доступ запрещён")
+        setLocalError(err.message);
       } else {
-        setLocalError(err.message || 'Ошибка при входе в систему');
+        setLocalError('Произошла ошибка при входе. Попробуйте позже.');
       }
     } finally {
       setIsLoading(false);
@@ -71,12 +92,13 @@ const LoginFormContent = () => {
     }
   };
 
-  // Переопределяем handleSubmit, чтобы избежать автоматической отправки
-  const handleFormSubmit = (e) => {
-    e.preventDefault();
-    const data = getValues();
-    onSubmit(data);
-  };
+  // Используем handleSubmit из useWvcForm
+  const handleFormSubmit = handleSubmit(onSubmit, (errors) => {
+    // Если есть ошибки валидации формы
+    if (errors.username || errors.password) {
+      setLocalError('Пожалуйста, заполните все поля корректно');
+    }
+  });
 
   return (
     <motion.div
@@ -104,7 +126,7 @@ const LoginFormContent = () => {
             </motion.div>
           )}
 
-          <form onSubmit={handleFormSubmit} style={styles.form}>
+          <form onSubmit={handleFormSubmit} style={styles.form} noValidate>
             <motion.div variants={inputVariants}>
               <FormField
                 name="username"
@@ -119,7 +141,16 @@ const LoginFormContent = () => {
                         placeholder="example@mail.com"
                         disabled={isLoading || isSubmitting}
                         className={errors.username ? "border-red-500" : ""}
-                        style={styles.input}
+                        style={{
+                          ...styles.input,
+                          ...(errors.username ? styles.inputError : {}),
+                          ...(localError ? styles.inputError : {})
+                        }}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          // Сбрасываем ошибку при вводе
+                          if (localError) setLocalError(null);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -145,7 +176,16 @@ const LoginFormContent = () => {
                         placeholder="••••••••"
                         disabled={isLoading || isSubmitting}
                         className={errors.password ? "border-red-500" : ""}
-                        style={styles.input}
+                        style={{
+                          ...styles.input,
+                          ...(errors.password ? styles.inputError : {}),
+                          ...(localError ? styles.inputError : {})
+                        }}
+                        onChange={(e) => {
+                          field.onChange(e);
+                          // Сбрасываем ошибку при вводе
+                          if (localError) setLocalError(null);
+                        }}
                       />
                     </FormControl>
                     <FormMessage />
@@ -169,7 +209,10 @@ const LoginFormContent = () => {
               disabled={isLoading || isSubmitting}
               variant="default"
               size="lg"
-              style={styles.button}
+              style={{
+                ...styles.button,
+                ...((isLoading || isSubmitting) ? styles.buttonDisabled : {})
+              }}
             >
               {(isLoading || isSubmitting) ? (
                 <span style={styles.loading}>
@@ -260,9 +303,14 @@ const styles = {
     fontSize: '1rem',
     borderRadius: '8px',
     border: '1px solid #e2e8f0',
-    transition: 'border-color 0.2s',
+    transition: 'border-color 0.2s, box-shadow 0.2s',
     width: '100%',
     background: '#f7fafc',
+    outline: 'none',
+  },
+  inputError: {
+    borderColor: '#dc3545',
+    background: '#fff5f5',
   },
   error: {
     color: '#dc3545',
@@ -322,6 +370,11 @@ const styles = {
     cursor: 'pointer',
     transition: 'transform 0.2s, box-shadow 0.2s',
     boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+  },
+  buttonDisabled: {
+    opacity: 0.7,
+    cursor: 'not-allowed',
+    transform: 'none',
   },
   loading: {
     display: 'flex',

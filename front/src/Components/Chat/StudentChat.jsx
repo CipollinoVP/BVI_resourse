@@ -13,6 +13,11 @@ const StudentChat = () => {
   const [initialLoading, setInitialLoading] = useState(true);
 
   const chatContainerRef = useRef(null);
+  const lastIdRef = useRef(lastId);
+
+  useEffect(() => {
+    lastIdRef.current = lastId;
+  }, [lastId]);
 
   useEffect(() => {
     if (!teacherUuid) return;
@@ -23,7 +28,7 @@ const StudentChat = () => {
     }, 3000);
 
     return () => clearInterval(interval);
-  }, [teacherUuid, lastId]);
+  }, [teacherUuid]);
 
   useEffect(() => {
     if (!chatContainerRef.current) return;
@@ -34,7 +39,7 @@ const StudentChat = () => {
     setInitialLoading(true);
     try {
       const res = await apiClient.get(`students/parent/chats/${teacherUuid}/`);
-      if (res.data.data) {
+      if (res.data?.data) {
         const { messages: initialMessages, pagination: pag } = res.data.data;
         const formatted = initialMessages.map((m) => ({
           id: m[0],
@@ -46,7 +51,7 @@ const StudentChat = () => {
 
         setMessages(formatted);
         setPagination(pag);
-        if (pag.last) setLastId(pag.last);
+        if (pag?.last) setLastId(pag.last);
       }
     } catch (err) {
       console.error('Ошибка при открытии чата:', err);
@@ -56,14 +61,28 @@ const StudentChat = () => {
   };
 
   const checkMonitoring = async () => {
-    if (!lastId) return;
+    const currentLastId = lastIdRef.current;
+    if (!currentLastId) return;
     try {
       const res = await apiClient.get(
-        `students/parent/chats/${teacherUuid}/monitoring/?last=${lastId}`
+        `students/parent/chats/${teacherUuid}/monitoring/?last=${currentLastId}`
       );
-      if (res.data.message === 'Update' && res.data.new_messages) {
-        setMessages((prev) => [...prev, ...res.data.new_messages]);
-        setLastId(res.data.last_id);
+      if (res.data.message === 'Update') {
+        if (res.data.new_messages && res.data.new_messages.length > 0) {
+          setMessages((prev) => [...prev, ...res.data.new_messages]);
+          setLastId(res.data.last_id);
+        } else if (res.data.messages) {
+          // Инициализация при первом или сброшенном запросе
+          const formatted = res.data.messages.map((m) => ({
+            id: m.id,
+            text: m.text,
+            sender: m.sender,
+            created_at: m.created_at,
+            is_read: m.is_read
+          })).reverse();
+          setMessages(formatted);
+          if (res.data.last_id) setLastId(res.data.last_id);
+        }
       }
     } catch (err) {
       console.error('Ошибка при мониторинге:', err);
@@ -120,10 +139,13 @@ const StudentChat = () => {
       }
     } else {
       try {
-        await apiClient.post(`students/parent/chats/${teacherUuid}/`, {
+        const res = await apiClient.post(`students/parent/chats/${teacherUuid}/`, {
           text: inputText
         });
         setInputText('');
+        if (res.data?.data?.uuid) {
+          setLastId(res.data.data.uuid);
+        }
         checkMonitoring();
       } catch (err) {
         console.error('Ошибка отправки:', err);

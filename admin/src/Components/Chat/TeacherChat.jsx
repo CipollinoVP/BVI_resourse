@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
-import apiClient from '../../config/client'; // импортируем кастомный клиент
+import apiClient from '../../config/client';
 
 const TeacherChat = () => {
   const { uuid: companionUuid } = useParams();
@@ -12,6 +12,11 @@ const TeacherChat = () => {
   const [loading, setLoading] = useState(false);
 
   const chatContainerRef = useRef(null);
+  const lastIdRef = useRef(lastId);
+
+  useEffect(() => {
+    lastIdRef.current = lastId;
+  }, [lastId]);
 
   useEffect(() => {
     if (!companionUuid) return;
@@ -21,55 +26,69 @@ const TeacherChat = () => {
       checkMonitoring();
     }, 3000);
 
-    // ИСПРАВЛЕНО: возвращаем функцию очистки, а не JSX
     return () => clearInterval(interval);
   }, [companionUuid]);
 
-    const initChat = async () => {
+  const initChat = async () => {
     try {
-    // Делаем GET запрос к основной ручке GetAdminPersonal
-       const res = await apiClient.get(`admin/user_chat/${companionUuid}/`);
+      const res = await apiClient.get(`admin/user_chat/${companionUuid}/`);
 
-       if (res.data?.data) {
-           const { messages: rawMessages, pagination: pag } = res.data.data;
+      if (res.data?.data) {
+        const { messages: rawMessages, pagination: pag } = res.data.data;
 
-                // Преобразуем входящие массивы [id, text, sender, date, is_read] в объекты
-           const formattedMessages = rawMessages.map((m) => ({
-                    id: m[0],
-                    text: m[1],
-                    sender: m[2], // "me" или "not_me"
-                    created_at: m[3],
-                    is_read: m[4]
-           })).reverse(); // Реверсим, чтобы новые сообщения были внизу
+        const formattedMessages = rawMessages.map((m) => ({
+          id: m[0],
+          text: m[1],
+          sender: m[2], // "me" или "not_me"
+          created_at: m[3],
+          is_read: m[4]
+        })).reverse();
 
-           setMessages(formattedMessages);
-           setPagination(pag);
+        setMessages(formattedMessages);
+        setPagination(pag);
 
-
-           if (pag.last) {
-                setLastId(pag.last);
-           }
+        if (pag?.last) {
+          setLastId(pag.last);
         }
-        } catch (err) {
-            console.error("Ошибка при инициализации чата:", err);
-        }
-    };
+      }
+    } catch (err) {
+      console.error("Ошибка при инициализации чата:", err);
+    }
+  };
 
-  // 2. Мониторинг новых сообщений
   const checkMonitoring = async () => {
-    if (!lastId) return;
+    const currentLastId = lastIdRef.current;
+    if (!currentLastId) return;
     try {
-      const res = await apiClient.get(`admin/message_personal_monitoring/${companionUuid}/?last=${lastId}`);
-      if (res.data.message === "Update" && res.data.new_messages) {
-        setMessages((prev) => [...prev, ...res.data.new_messages]);
-        setLastId(res.data.last_id);
+      const res = await apiClient.get(`admin/message_personal_monitoring/${companionUuid}/?last=${currentLastId}`);
+      if (res.data.message === "Update") {
+        if (res.data.new_messages && res.data.new_messages.length > 0) {
+          const formatted = res.data.new_messages.map((m) => ({
+            id: m.id,
+            text: m.text,
+            sender: m.sender,
+            created_at: m.created_at,
+            is_read: m.is_read
+          }));
+          setMessages((prev) => [...prev, ...formatted]);
+          setLastId(res.data.last_id);
+        } else if (res.data.messages) {
+          const formatted = res.data.messages.map((m) => ({
+            id: m.id,
+            text: m.text,
+            sender: m.sender,
+            created_at: m.created_at,
+            is_read: m.is_read
+          })).reverse();
+          setMessages(formatted);
+          if (res.data.last_id) setLastId(res.data.last_id);
+        }
       }
     } catch (err) {
       console.error("Ошибка при мониторинге:", err);
     }
   };
 
-  // 3. Пагинация (подгрузка старых сообщений)
   const loadEarlierMessages = async () => {
     if (!pagination.first || loading) return;
     setLoading(true);
@@ -96,7 +115,6 @@ const TeacherChat = () => {
     }
   };
 
-  // 4. Отправка и редактирование
   const handleSend = async (e) => {
     e.preventDefault();
     if (!inputText.trim()) return;
@@ -117,8 +135,11 @@ const TeacherChat = () => {
       }
     } else {
       try {
-        await apiClient.post(`admin/user_chat/${companionUuid}/`, { text: inputText });
+        const res = await apiClient.post(`admin/user_chat/${companionUuid}/`, { text: inputText });
         setInputText('');
+        if (res.data?.data?.uuid) {
+          setLastId(res.data.data.uuid);
+        }
         checkMonitoring();
       } catch (err) {
         console.error("Ошибка при отправке:", err);
@@ -126,7 +147,6 @@ const TeacherChat = () => {
     }
   };
 
-  // 5. Удаление сообщения
   const handleDelete = async (msgId) => {
     if (!window.confirm("Удалить сообщение?")) return;
     try {
@@ -138,7 +158,8 @@ const TeacherChat = () => {
       console.error("Ошибка при удалении:", err);
     }
   };
-    return (
+
+  return (
     <div style={{
       display: 'flex', flexDirection: 'column', height: 'min(720px, calc(100vh - 140px))',
       minHeight: '520px', background: '#f7f8fc', border: '1px solid #e6e9f0',

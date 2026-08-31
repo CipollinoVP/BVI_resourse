@@ -31,7 +31,7 @@ const ClassAnnouncementPage = () => {
       setError('');
       try {
         // Бэкенд возвращает список с пагинацией, ищем нужное объявление по uuid
-        const response = await apiClient.get(`class/announcements/${uuid}/`, {
+        const response = await apiClient.get(`admin/announcement/group/${uuid}/`, {
           params: { pagination: 100 },
         });
 
@@ -41,12 +41,12 @@ const ClassAnnouncementPage = () => {
 
         if (target) {
           const [, title, htmlText, date] = target;
-          
+
           // Приведение даты к локальному формату для <input type="datetime-local" />
           let formattedDate = date;
           if (date) {
             const d = new Date(date);
-            formattedDate = !isNaN(d.getTime()) 
+            formattedDate = !isNaN(d.getTime())
               ? new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
               : date;
           }
@@ -85,7 +85,7 @@ const ClassAnnouncementPage = () => {
     try {
       if (isEditMode) {
         // PATCH запрос
-        await apiClient.patch(`class/announcements/${uuid}/`, {
+        await apiClient.patch(`admin/announcement/group/${uuid}/`, {
           uuid: announcementUuid,
           title: formData.title,
           'html-text': formData.htmlText,
@@ -94,7 +94,7 @@ const ClassAnnouncementPage = () => {
         setSuccessMsg('Объявление успешно обновлено!');
       } else {
         // POST запрос
-        await apiClient.post(`class/announcements/${uuid}/`, {
+        await apiClient.post(`admin/announcement/group/${uuid}/`, {
           title: formData.title,
           'html-text': formData.htmlText,
           date: formData.date,
@@ -123,7 +123,7 @@ const ClassAnnouncementPage = () => {
     setError('');
 
     try {
-      await apiClient.delete(`class/announcements/${uuid}/`, {
+      await apiClient.delete(`admin/announcement/group/${uuid}/`, {
         data: { uuid: announcementUuid },
       });
       // Перенаправляем на страницу класса после удаления

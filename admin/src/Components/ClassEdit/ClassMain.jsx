@@ -104,14 +104,14 @@ const ClassMain = () => {
       <section style={styles.section}>
         <div style={styles.sectionHeader}>
           <h2>Объявления класса</h2>
-          <NavLink to={`/announce/create?classId=${id}`} style={styles.primaryBtn}>
+          <NavLink to={`/class_announce/${id}`} style={styles.primaryBtn}>
             + Создать объявление
           </NavLink>
         </div>
 
         <div style={styles.announcementsGrid}>
           {/* Кнопка создания объявления как интерактивная карточка */}
-          <NavLink to={`/announce/create?classId=${id}`} style={styles.createCard}>
+          <NavLink to={`/class_announce/${id}`} style={styles.createCard}>
             <span style={{ fontSize: '1.5rem', marginBottom: '0.25rem' }}>+</span>
             <strong>Создать объявление</strong>
           </NavLink>
@@ -120,7 +120,7 @@ const ClassMain = () => {
             <div key={item.uuid} style={styles.announcementCard}>
               {item.img && <img src={item.img} alt={item.title} style={styles.announcementImg} />}
               <div style={{ padding: '1rem' }}>
-                <h4 style={{ margin: '0 0 0.5rem 0' }}>{item.title}</h4>
+                <NavLink to={`/class_announce/${id}/?announcementUuid=${item.uuid}`}><h4 style={{ margin: '0 0 0.5rem 0' }}>{item.title}</h4></NavLink>
                 <small style={{ color: '#6c757d' }}>{item.date}</small>
                 <div
                   dangerouslySetInnerHTML={{ __html: item.text }}

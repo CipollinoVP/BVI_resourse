@@ -32,26 +32,35 @@ const onRefreshed = (token) => {
     refreshSubscribers = [];
 };
 
+// Функция для очистки токенов
+const clearTokens = () => {
+    localStorage.removeItem('access_token');
+    localStorage.removeItem('refresh_token');
+    localStorage.removeItem('user_type');
+};
+
 apiClient.interceptors.response.use(
     (response) => response,
 
     async (error) => {
         const originalRequest = error.config;
 
+        // Проверяем, что это 401 и не запрос на обновление токена
         if (
             error.response?.status === 401 &&
-            !originalRequest._retry
+            !originalRequest._retry &&
+            !originalRequest.url?.includes('/auth/jwt/refresh/')
         ) {
             const refreshToken = localStorage.getItem('refresh_token');
 
+            // Если нет refresh токена - просто пробрасываем ошибку
             if (!refreshToken) {
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('user_type');
-
-                window.location.href = '/login';
+                clearTokens();
+                // Не делаем редирект, просто пробрасываем ошибку
                 return Promise.reject(error);
             }
 
+            // Если уже идет обновление - ждем
             if (isRefreshing) {
                 return new Promise((resolve) => {
                     subscribeTokenRefresh((newToken) => {
@@ -67,8 +76,7 @@ apiClient.interceptors.response.use(
             isRefreshing = true;
 
             try {
-                // ВАЖНО: обычный axios, а не apiClient,
-                // чтобы refresh-запрос не попал снова в interceptor
+                // Пытаемся обновить токен
                 const response = await axios.post(
                     `${API_CONFIG.baseURL}auth/jwt/refresh/`,
                     {
@@ -91,20 +99,20 @@ apiClient.interceptors.response.use(
 
                 onRefreshed(newAccessToken);
 
+                // Повторяем оригинальный запрос с новым токеном
                 return apiClient(originalRequest);
             } catch (refreshError) {
-                localStorage.removeItem('access_token');
-                localStorage.removeItem('refresh_token');
-                localStorage.removeItem('user_type');
+                // Если обновление не удалось - очищаем токены
+                clearTokens();
 
-                window.location.href = '/login';
-
+                // Пробрасываем ошибку, чтобы компонент мог ее обработать
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;
             }
         }
 
+        // Пробрасываем ошибку для обработки в компоненте
         return Promise.reject(error);
     }
 );

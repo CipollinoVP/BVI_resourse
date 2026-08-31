@@ -7,6 +7,7 @@ const CreateUser = () => {
     name: '',
     surname: '',
     email: '',
+    commentary: '',
     user_type: 'child', // Значение по умолчанию
   });
 
@@ -38,6 +39,7 @@ const CreateUser = () => {
         name: '',
         surname: '',
         email: '',
+        commentary: '',
         user_type: 'child',
       });
     } catch (err) {
@@ -88,6 +90,18 @@ const CreateUser = () => {
             value={formData.surname}
             onChange={handleChange}
             required
+            style={styles.input}
+          />
+        </div>
+
+        <div style={styles.field}>
+          <label htmlFor="commentary">Примечание:</label>
+          <input
+            id="commentary"
+            type="text"
+            name="commentary"
+            value={formData.commentary}
+            onChange={handleChange}
             style={styles.input}
           />
         </div>
