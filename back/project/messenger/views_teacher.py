@@ -1,5 +1,6 @@
 from datetime import datetime
 
+import requests
 from django.core.paginator import Paginator
 from django.utils import timezone
 
@@ -658,6 +659,25 @@ class AnnouncementGroupAPIView(APIView):
                 status=status.HTTP_400_BAD_REQUEST
             )
 
+        group_ids = []
+        if group.parent_chat_id:
+            group_ids.append(group.parent_chat_id)
+        if group.child_chat_id:
+            group_ids.append(group.child_chat_id)
+
+        # Запрашиваем email уникальных пользователей из этих чатов
+        emails = list(
+            CustomUser.objects.filter(
+                group_links__group_id__in=group_ids
+            )
+            # .exclude(id=user.id)  # Раскомментируйте, если нужно исключить самого учителя
+            .exclude(email="")
+            .exclude(email__isnull=True)
+            .values_list("email", flat=True)
+            .distinct()
+        )
+        # ---------------------------------------------------------
+
         announcement = AnnouncementInClass.objects.create(
             user=user,
             group=group,
@@ -665,6 +685,14 @@ class AnnouncementGroupAPIView(APIView):
             announce=html_text,
             date=datetime_value,
         )
+
+        if emails:
+            requests.post("http://172.17.0.1:8116/", json={
+                "email": emails,
+                "subject": f"Объявление: {announcement.title}",
+                "text_message": str(announcement.announce),
+                "html_message": str(announcement.announce),
+            })
 
         return Response(
             {

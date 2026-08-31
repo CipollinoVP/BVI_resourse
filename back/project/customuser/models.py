@@ -19,6 +19,7 @@ class CustomUser(AbstractUser):
     user_type = models.CharField(verbose_name="Тип пользователя", max_length=20, choices=USER_TYPE_CHOICES, default='child')
     is_identy = models.BooleanField(verbose_name="Подтверждённый пользователь", default=False)
     base_teacher = models.UUIDField(verbose_name="Добавивший педагог", null=True, blank=True)
+    commentary = models.CharField(verbose_name="Примечание", max_length=255, blank=True, null=True)
 
     USERNAME_FIELD = 'email'
     REQUIRED_FIELDS = ['username']

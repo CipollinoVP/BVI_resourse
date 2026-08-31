@@ -4,53 +4,90 @@ from .models import RegularLessonModel, IrregularLessonModel, CancelLessonModel,
 from datetime import datetime, timedelta
 from messenger.models import ClassModel
 
+def format_time(t):
+    if not t:
+        return ""
+    return t.strftime("%H:%M:%S")  # Или "%H:%M"
+
 
 def get_schedule_for_week(group: ClassModel, start_day: datetime = None):
     if start_day is None:
         start_day = datetime.now()
-    finish_day = start_day + timedelta(days=7)
 
+    finish_day = start_day + timedelta(days=7)
     start_date = start_day.date()
     end_date = finish_day.date()
 
+    # Регулярные занятия
     regular_lessons = RegularLessonModel.objects.filter(
         Q(group=group) &
-        Q(start_schedule__lte=start_date) &  # начало расписания ДО или В start_day
-        Q(end_schedule__gte=end_date)  # конец расписания ПОСЛЕ или В finish_day
-    ).prefetch_related("canceled")
+        Q(start_schedule__lte=start_date) &
+        Q(end_schedule__gte=end_date)
+    )
 
-    irregular_lesson = IrregularLessonModel.objects.filter(group=group)
-    cursor = start_day.date()
+    # Разовые занятия на текущую неделю
+    irregular_lessons = IrregularLessonModel.objects.filter(
+        group=group,
+        date__gte=start_date,
+        date__lt=end_date
+    )
+
+    # Заранее получаем отмены для избежания N+1 запросов
+    canceled_dates = set(
+        CancelLessonModel.objects.filter(
+            lesson__in=regular_lessons,
+            date__gte=start_date,
+            date__lt=end_date
+        ).values_list('lesson_id', 'date')
+    )
+
+    cursor = start_date
     schedule = []
+
     while cursor != end_date:
         weekday = cursor.strftime('%A')
-        today_lessons = regular_lessons.filter(weekday=weekday)
-        if today_lessons.exists():
-            for lesson in today_lessons:
-                if CancelLessonModel.objects.filter(lesson=lesson, date=cursor).exists():
-                    continue
-                else:
-                    schedule.append(
-                        {
-                            "type": "regular",
-                            "day": lesson.weekday,
-                            "exact_day": cursor.strftime('%Y-%m-%d'),
-                            "start_time": lesson.start_time,
-                            "finish_time": lesson.finish_time,
-                        }
-                    )
-        check_irregular = irregular_lesson.filter(date=cursor)
-        if check_irregular.exists():
+
+        # Обработка регулярных занятий
+        for lesson in regular_lessons.filter(weekday=weekday):
+            if (lesson.id, cursor) in canceled_dates:
+                continue
+
             schedule.append(
                 {
-                    "type": "irregular",
-                    "day": weekday,
+                    "id": str(lesson.id),
+                    "type": "regular",
+                    "name": lesson.name,  # <-- Добавлено имя занятия
+                    "day": lesson.weekday,
                     "exact_day": cursor.strftime('%Y-%m-%d'),
-                    "start_time": check_irregular.first().start_time,
-                    "finish_time": check_irregular.first().finish_time,
+                    "start_time": lesson.start_time.strftime("%H:%M") if lesson.start_time else None,
+                    "finish_time": lesson.finish_time.strftime("%H:%M") if lesson.finish_time else None,
                 }
             )
-        cursor = cursor + timedelta(days=1)
+
+        # Обработка разовых занятий (проходим по всем занятиям дня)
+        for lesson in irregular_lessons.filter(date=cursor):
+            schedule.append(
+                {
+                    "id": str(lesson.id),
+                    "type": "irregular",
+                    "name": lesson.name,  # <-- Добавлено имя занятия
+                    "day": weekday,
+                    "exact_day": cursor.strftime('%Y-%m-%d'),
+                    "start_time": lesson.start_time.strftime("%H:%M") if lesson.start_time else None,
+                    "finish_time": lesson.finish_time.strftime("%H:%M") if lesson.finish_time else None,
+                }
+            )
+
+        cursor += timedelta(days=1)
+
+    # Сортируем по дате и времени
+    schedule.sort(
+        key=lambda x: (
+            x["exact_day"],
+            x["start_time"] or ""
+        )
+    )
+
     return schedule
 
 def get_schedule_for_teacher(

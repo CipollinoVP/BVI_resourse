@@ -2,15 +2,18 @@ from datetime import timedelta
 import os
 from pathlib import Path
 
+from dotenv import load_dotenv
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+load_dotenv(os.path.join(BASE_DIR, '.env'))
 
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/6.0/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure--&^5de_r#+y+2&6&cq4x=68r!m2rg1agafft!d=0mgkspl)#h)'
+SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key')
 
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
@@ -44,6 +47,7 @@ INSTALLED_APPS = [
     'schedule',
     'announcement',
     'mainapp',
+    'news',
     'corsheaders',
     'ckeditor',
     'ckeditor_uploader'
@@ -151,13 +155,14 @@ USE_I18N = True
 
 USE_TZ = True
 
+# === SMTP НАСТРОЙКИ ===
 EMAIL_BACKEND = 'django.core.mail.backends.smtp.EmailBackend'
-EMAIL_HOST = 'smtp.gmail.com'
-EMAIL_PORT = 587  # Или 465 для SSL (но тогда EMAIL_USE_TLS = False)
-EMAIL_HOST_USER = 'sobakasutulaya1106@gmail.com'  # Полный адрес Gmail
-EMAIL_HOST_PASSWORD = 'xqhcfpacjdukmzep'  # Не основной пароль!
-EMAIL_USE_TLS = True  # Для порта 587
-DEFAULT_FROM_EMAIL = 'sobakasutulaya1106@gmail.com'  # Можно указать любой email
+EMAIL_HOST = os.getenv('EMAIL_HOST', 'localhost')
+EMAIL_PORT = int(os.getenv('EMAIL_PORT', 587))
+EMAIL_HOST_USER = os.getenv('EMAIL_HOST_USER', '')
+EMAIL_HOST_PASSWORD = os.getenv('EMAIL_HOST_PASSWORD', '')
+EMAIL_USE_TLS = os.getenv('EMAIL_USE_TLS', 'True').lower() == 'true'
+DEFAULT_FROM_EMAIL = os.getenv('DEFAULT_FROM_EMAIL', EMAIL_HOST_USER)
 
 CKEDITOR_UPLOAD_PATH = 'uploads/'
 CKEDITOR_IMAGE_BACKEND = "pillow"
