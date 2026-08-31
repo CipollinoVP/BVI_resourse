@@ -316,6 +316,9 @@ class GetTeacherPersonalChatView(APIView):
         lib_read_teacher[
             (user.id, teacher.id)
         ] = message.id
+        lib_read_teacher[
+            (teacher.id, user.id)
+        ] = message.id
 
         data = {
             "uuid": message.id,

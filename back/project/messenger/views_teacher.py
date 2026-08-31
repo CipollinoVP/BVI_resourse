@@ -483,6 +483,7 @@ class GetAdminPersonal(APIView):
                 message=text
             )
             lib_read_teacher[(user.id, student.id)] = message.id
+            lib_read_teacher[(student.id, user.id)] = message.id
         else:
             message = MessageInTeacherChatModel.objects.create(
                 teacher=user,
@@ -491,6 +492,7 @@ class GetAdminPersonal(APIView):
                 message=text
             )
             lib_read_teacher[(user.id, student.id)] = message.id
+            lib_read_teacher[(student.id, user.id)] = message.id
 
         data = {
             "uuid": message.id,
