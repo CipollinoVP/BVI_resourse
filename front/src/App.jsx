@@ -10,6 +10,7 @@ import Footer from './Components/Footer/Footer'
 import GroupChat from './Components/Chat/GroupChat'
 import StudentChat from './Components/Chat/StudentChat'
 import { ProtectedRoute } from './Components/ProtectedRoute'
+import NewsPage from './Components/News/NewsPage'
 
 
 function FrontApp() {
@@ -34,6 +35,14 @@ function FrontApp() {
                                 element={
                                     <ProtectedRoute>
                                         <StudentChat />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/NewsPage"
+                                element={
+                                    <ProtectedRoute>
+                                        <NewsPage />
                                     </ProtectedRoute>
                                 }
                             />

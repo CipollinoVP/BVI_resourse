@@ -4,6 +4,8 @@ import { NavLink } from 'react-router-dom';
 import apiClient from '../../config/client';
 import { useAuth } from '../../context/AuthContext';
 
+import NewsList from '../News/NewsList'
+
 import './Main.css';
 
 
@@ -67,13 +69,9 @@ const Main = () => {
   if (!isAuthenticated) {
     return (
       <main className="main-page">
-        <section className="main-section">
-          <h1>Объявления</h1>
-
-          <Announcements
-            announcements={data || []}
-          />
-        </section>
+        <div className="min-h-screen bg-background">
+            <NewsList />
+         </div>
       </main>
     );
   }
@@ -200,39 +198,48 @@ const ClassCard = ({ classItem }) => {
 // РАСПИСАНИЕ
 // =============================================================
 
+// =============================================================
+// РАСПИСАНИЕ
+// =============================================================
+
 const Schedule = ({ schedule }) => {
   return (
     <div className="schedule-list">
 
-      {schedule.map((lesson, index) => (
-        <div
-          className="schedule-item"
-          key={
-            lesson.id ||
-            `${lesson.exact_day}-${lesson.start_time}-${index}`
-          }
-        >
+      {schedule.map((lesson, index) => {
+        // Защита от пустых названий и null/undefined
+        const lessonName = lesson.name?.trim() || 'Предмет не указан';
 
-          <div className="schedule-date">
-            {lesson.exact_day}
-          </div>
+        return (
+          <div
+            className="schedule-item"
+            key={
+              lesson.id ||
+              `${lesson.exact_day}-${lesson.start_time}-${index}`
+            }
+          >
 
-          <div className="schedule-info">
-
-            <div className="schedule-name">
-              {lesson.name || 'Занятие'}
+            <div className="schedule-date">
+              {lesson.exact_day}
             </div>
 
-            <div className="schedule-time">
-              {lesson.start_time}
-              {' — '}
-              {lesson.finish_time}
+            <div className="schedule-info">
+
+              <div className="schedule-name">
+                {lessonName}
+              </div>
+
+              <div className="schedule-time">
+                {lesson.start_time}
+                {' — '}
+                {lesson.finish_time}
+              </div>
+
             </div>
 
           </div>
-
-        </div>
-      ))}
+        );
+      })}
 
     </div>
   );

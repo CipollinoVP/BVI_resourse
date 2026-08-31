@@ -72,16 +72,12 @@ function DesktopMenuConsumer() {
   const defaultItems = !isAuthenticated
   ? [
       { id: "home", label: "Главная", href: "/" },
-      { id: "about", label: "О студии", href: "/AboutStudioPage" },
       { id: "announcements", label: "Объявления", href: "/AnnouncementsPage" },
-      { id: "contacts", label: "Контакты", href: "/ContactsPage" },
     ]
   : [
       { id: "home", label: "Главная", href: "/" },
-      { id: "about", label: "О студии", href: "/AboutStudioPage" },
       { id: "announcements", label: "Объявления", href: "/AnnouncementsPage" },
-      { id: "schedule", label: "Расписание", href: "/SchedulePage" },
-      { id: "contacts", label: "Контакты", href: "/ContactsPage" },
+      { id: "news", label: "Новости", href: "/NewsPage" },
     ];
 
   const items = menuItems && menuItems.length > 0 ? menuItems : defaultItems;
@@ -162,16 +158,12 @@ function MobileMenuConsumer({ onClose }) {
   const defaultItems = isAuthenticated
   ? [
       { id: "mob-home", label: "Главная", href: "/" },
-      { id: "mob-about", label: "О студии", href: "/AboutStudioPage" },
       { id: "mob-announcements", label: "Объявления", href: "/AnnouncementsPage" },
-      { id: "mob-contacts", label: "Контакты", href: "/ContactsPage" },
     ]
   : [
       { id: "mob-home", label: "Главная", href: "/" },
-      { id: "mob-about", label: "О студии", href: "/AboutStudioPage" },
       { id: "mob-announcements", label: "Объявления", href: "/AnnouncementsPage" },
-      { id: "mob-schedule", label: "Расписание", href: "/SchedulePage" },
-      { id: "mob-contacts", label: "Контакты", href: "/ContactsPage" },
+      { id: "mob-schedule", label: "Новости", href: "/NewsPage" }
     ];
 
   const items = menuItems && menuItems.length > 0 ? menuItems : defaultItems;

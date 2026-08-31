@@ -136,20 +136,20 @@ const ClassMain = () => {
       <section style={styles.section}>
         <h2>Расписание занятий</h2>
         {schedule?.length > 0 ? (
-          <div style={styles.scheduleList}>
+        <div style={styles.scheduleList}>
             {schedule.map((item, idx) => (
-              <div key={idx} style={styles.scheduleCard}>
-                <div>
-                  <strong>{item.day}</strong> ({item.exact_day})
+                <div key={item.id || idx} style={styles.scheduleCard}>
+                    <div>
+                        <strong>{item.name || 'Занятие'}</strong> ({item.day}, {item.exact_day})
+                    </div>
+                    <div>
+                        {item.start_time ? item.start_time.slice(0, 5) : '--:--'} - {item.finish_time ? item.finish_time.slice(0, 5) : '--:--'}
+                    </div>
                 </div>
-                <div>
-                  {item.start_time.slice(0, 5)} - {item.finish_time.slice(0, 5)}
-                </div>
-              </div>
             ))}
-          </div>
+        </div>
         ) : (
-          <p style={{ color: '#6c757d' }}>Расписание не задано</p>
+            <p style={{ color: '#6c757d' }}>Расписание не задано</p>
         )}
       </section>
     </div>

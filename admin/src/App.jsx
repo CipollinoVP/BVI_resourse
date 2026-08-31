@@ -16,6 +16,7 @@ import AnnouncementCreate from './Components/Announcement/AnnouncementCreate'
 import CreateUser from './Components/CreateUser'
 import GroupChat from './Components/Chat/GroupChat'
 import TeacherChat from './Components/Chat/TeacherChat'
+import ClassAnnouncementPage from './Components/ClassEdit/ClassAnnouncementPage'
 
 
 function FrontApp() {
@@ -96,6 +97,14 @@ function FrontApp() {
                                 element={
                                     <ProtectedRoute>
                                         <TeacherChat />
+                                    </ProtectedRoute>
+                                }
+                            />
+                            <Route
+                                path="/class_announce/:uuid"
+                                element={
+                                    <ProtectedRoute>
+                                        <ClassAnnouncementPage />
                                     </ProtectedRoute>
                                 }
                             />

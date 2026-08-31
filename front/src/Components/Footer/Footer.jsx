@@ -58,23 +58,13 @@ function FooterMenuConsumer() {
         </li>
         {isAuthenticated &&
         <li data-index={1}>
-          <Link to="/SchedulePage" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
-            Расписание
+          <Link to="/NewsPage" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
+            Новости
           </Link>
         </li>}
         <li data-index={2}>
           <Link to="/AnnouncementsPage" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
             Объявления
-          </Link>
-        </li>
-        <li data-index={3}>
-          <Link to="/AboutStudioPage" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
-            О студии
-          </Link>
-        </li>
-        <li data-index={4}>
-          <Link to="/ContactsPage" className="text-sm font-medium text-muted-foreground transition-colors hover:text-primary">
-            Контакты
           </Link>
         </li>
       </ul>
