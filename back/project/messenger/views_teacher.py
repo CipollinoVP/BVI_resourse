@@ -114,7 +114,7 @@ class GetClassInfoView(APIView):
                 "title": announcement.title,
                 "date": announcement.date,
                 "text": announcement.announce,
-                "img": announcement.img.url,
+                "img": announcement.img.url if announcement.img else None,
             }
             announcements_result.append(announcement_dict)
 
