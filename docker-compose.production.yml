@@ -28,10 +28,6 @@ services:
     volumes:
       - ./media/:/usr/src/project/media/
       - ./static_django/:/usr/src/project/static_django/
-    environment:
-      DJANGO_SUPERUSER_USERNAME: "cipollino"
-      DJANGO_SUPERUSER_EMAIL: "yurich2002Vadim@gmail.com"
-      DJANGO_SUPERUSER_PASSWORD: "Alpine12"
     depends_on:
       - db
     networks:
