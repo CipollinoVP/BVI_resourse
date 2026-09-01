@@ -76,7 +76,7 @@ def get_info_about_users(group_local: GroupModel, group_global: ClassModel, type
 
     sorted_participants_array = sorted(
         participants_array,
-        key=lambda i: i["last_time"] if i["last_time"] is not None else datetime.min,
+        key=lambda i: i["last_time"].timestamp() if i["last_time"] else float("-inf"),
         reverse=True
     )
 
