@@ -2,6 +2,8 @@ from django.contrib import admin
 from .models import CustomUser
 
 class CustomUserAdmin(admin.ModelAdmin):
+    list_display = ('email', 'surname', 'name', 'commentary')
+
     def get_groups(self, obj):
         return ", ".join([group.name for group in obj.groups.all()])
 
