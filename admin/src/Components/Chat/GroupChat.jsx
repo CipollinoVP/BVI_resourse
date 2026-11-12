@@ -1,10 +1,12 @@
 import React, { useEffect, useState, useRef, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import apiClient from '../../config/client';
+import { useUnread } from '../../context/UnreadContext';
 
 const GroupChat = () => {
   const { uuid: chatUuid } = useParams();
   const navigate = useNavigate();
+  const { refreshUnread } = useUnread();
 
   const [chatName, setChatName] = useState('');
   const [messages, setMessages] = useState([]);
@@ -65,13 +67,16 @@ const GroupChat = () => {
       const parsed = (rawMessages || []).map(parseMessage).reverse();
       setMessages(parsed);
       setError('');
+
+      // Чат открыт — сервер сбросил непрочитанные, обновляем счётчики
+      refreshUnread();
     } catch (err) {
       console.error(err);
       setError('Не удалось загрузить чат или нет прав доступа');
     } finally {
       setLoading(false);
     }
-  }, [chatUuid]);
+  }, [chatUuid, refreshUnread]);
 
   useEffect(() => {
     isInitialLoad.current = true;
@@ -91,17 +96,21 @@ const GroupChat = () => {
 
     let isSubscribed = true;
     const interval = setInterval(async () => {
+      // В пустом чате last ещё нет: запрашиваем без него, сервер вернёт
+      // полный список, как только появится первое сообщение.
       const lastMsgId = pagination.last;
-      if (!lastMsgId) return;
 
       try {
         const res = await apiClient.get(`admin/message_group_monitoring/${chatUuid}/`, {
-          params: { last: lastMsgId }
+          params: lastMsgId ? { last: lastMsgId } : {}
         });
 
         if (res.data.message === 'Update' && isSubscribed) {
-          // ✅ Используем new_messages (новый формат)
-          const newRawMessages = res.data.new_messages || [];
+          // new_messages — только новые (по возрастанию времени);
+          // messages — полный список (по убыванию), приходит для пустого
+          // чата или после перезапуска сервера.
+          const newRawMessages =
+            res.data.new_messages || [...(res.data.messages || [])].reverse();
           const newParsed = newRawMessages.map(parseMessage);
 
           setMessages((prev) => {
@@ -111,7 +120,17 @@ const GroupChat = () => {
           });
 
           if (res.data.last_id) {
-            setPagination((prev) => ({ ...prev, last: res.data.last_id }));
+            setPagination((prev) => ({
+              ...prev,
+              last: res.data.last_id,
+              // Чат был пуст — берём границы пагинации из полного ответа
+              ...(!prev.first && res.data.pagination
+                ? {
+                    first: res.data.pagination.first,
+                    has_next: res.data.pagination.has_next,
+                  }
+                : {}),
+            }));
           }
         }
       } catch (err) {

@@ -4,6 +4,7 @@ import {compose} from 'redux';
 import {BrowserRouter, Route, Routes} from 'react-router-dom'
 import Main from './Components/Main/Main'
 import { AuthProvider } from './context/AuthContext';
+import { UnreadProvider } from './context/UnreadContext';
 import LoginPage from './Components/Login/LoginPage'
 import Header from './Components/Header/Header'
 import Footer from './Components/Footer/Footer'
@@ -17,6 +18,7 @@ import AnnouncementsPage from './Components/Announcemet/AnnouncementsPage'
 function FrontApp() {
     return (<BrowserRouter>
                 <AuthProvider>
+                <UnreadProvider>
                 <div>
                     <Header/>
                     <div class='body'>
@@ -52,6 +54,7 @@ function FrontApp() {
                     </div>
                     <Footer/>
                 </div>
+                </UnreadProvider>
                 </AuthProvider>
             </BrowserRouter>
             )

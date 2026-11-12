@@ -1,11 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { teacherService } from '../../services/teacherService';
 import { NavLink } from 'react-router-dom';
+import { useUnread } from '../../context/UnreadContext';
+import UnreadBadge from '../common/UnreadBadge';
 
 const Main = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { classes: unreadByClass, personal_outside_classes: unreadOutside } = useUnread();
 
   useEffect(() => {
     const fetchData = async () => {
@@ -99,6 +102,7 @@ const Main = () => {
             data.classes.map((c) => (
               <NavLink key={c.uuid} to={`/group/${c.uuid}`} style={styles.classBadge}>
                 {c.name}
+                <UnreadBadge count={unreadByClass?.[c.uuid]} />
               </NavLink>
             ))
           ) : (
@@ -106,6 +110,21 @@ const Main = () => {
           )}
         </div>
       </section>
+
+      {/* Непрочитанные личные чаты с пользователями вне классов */}
+      {unreadOutside?.length > 0 && (
+        <section style={styles.section}>
+          <h2>Новые личные сообщения</h2>
+          <div style={styles.classesList}>
+            {unreadOutside.map((chat) => (
+              <NavLink key={chat.uuid} to={`/personal_chat/${chat.uuid}`} style={styles.classBadge}>
+                {chat.name}
+                <UnreadBadge count={chat.unread} />
+              </NavLink>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Календарь расписания */}
       <section style={styles.section}>
@@ -170,6 +189,9 @@ const styles = {
   },
   classesList: { display: 'flex', gap: '0.5rem', flexWrap: 'wrap' },
   classBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.4rem',
     padding: '0.5rem 1rem',
     backgroundColor: '#e9ecef',
     color: '#212529',

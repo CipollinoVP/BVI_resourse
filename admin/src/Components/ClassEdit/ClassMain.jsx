@@ -1,12 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link, NavLink } from 'react-router-dom';
 import { teacherService } from '../../services/teacherService';
+import { useUnread } from '../../context/UnreadContext';
+import UnreadBadge from '../common/UnreadBadge';
 
 const ClassMain = () => {
   const { id } = useParams();
   const [classData, setClassData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
+  const { group_chats: unreadGroups, personal_chats: unreadPersonal } = useUnread();
 
   useEffect(() => {
     const fetchClassInfo = async () => {
@@ -56,7 +59,10 @@ const ClassMain = () => {
             )}
           </div>
           <div style={styles.chatBox}>
-            <strong><NavLink to={`/group_chat/${parents_chat?.uuid}`}>Общий чат родителей:</NavLink></strong>
+            <strong style={styles.chatTitle}>
+              <NavLink to={`/group_chat/${parents_chat?.uuid}`}>Общий чат родителей:</NavLink>
+              <UnreadBadge count={unreadGroups?.[parents_chat?.uuid]} />
+            </strong>
             <p style={styles.chatStatus}>
               {parents_chat?.last_message !== 'NONE' ? parents_chat?.last_message : 'Сообщений пока нет'}
             </p>
@@ -65,7 +71,10 @@ const ClassMain = () => {
           <ul style={styles.list}>
             {sort_parents?.map((parent) => (
               <li key={parent.uuid} style={styles.listItem}>
-                <NavLink to={`/personal_chat/${parent.uuid}`}><span>{parent.surname || 'Без фамилии'}</span></NavLink>
+                <span style={styles.chatTitle}>
+                  <NavLink to={`/personal_chat/${parent.uuid}`}><span>{parent.surname || 'Без фамилии'}</span></NavLink>
+                  <UnreadBadge count={unreadPersonal?.[parent.uuid]} />
+                </span>
                 <small style={{ color: '#6c757d' }}>{parent.last_message || 'Нет сообщений'}</small>
               </li>
             ))}
@@ -83,7 +92,10 @@ const ClassMain = () => {
             )}
           </div>
           <div style={styles.chatBox}>
-            <strong><NavLink to={`/group_chat/${child_chat.uuid}`}>Общий чат класса:</NavLink></strong>
+            <strong style={styles.chatTitle}>
+              <NavLink to={`/group_chat/${child_chat.uuid}`}>Общий чат класса:</NavLink>
+              <UnreadBadge count={unreadGroups?.[child_chat?.uuid]} />
+            </strong>
             <p style={styles.chatStatus}>
               {child_chat?.last_message !== 'NONE' ? child_chat?.last_message : 'Сообщений пока нет'}
             </p>
@@ -92,7 +104,10 @@ const ClassMain = () => {
           <ul style={styles.list}>
             {sort_children?.map((child) => (
               <li key={child.uuid} style={styles.listItem}>
-                <NavLink to={`/personal_chat/${child.uuid}`}><span>{child.surname || 'Ученик без фамилии'}</span></NavLink>
+                <span style={styles.chatTitle}>
+                  <NavLink to={`/personal_chat/${child.uuid}`}><span>{child.surname || 'Ученик без фамилии'}</span></NavLink>
+                  <UnreadBadge count={unreadPersonal?.[child.uuid]} />
+                </span>
                 <small style={{ color: '#6c757d' }}>{child.last_message || 'Нет сообщений'}</small>
               </li>
             ))}
@@ -186,11 +201,14 @@ const styles = {
   gridTwo: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '2rem' },
   card: { border: '1px solid #dee2e6', borderRadius: '8px', padding: '1.5rem', backgroundColor: '#fff' },
   chatBox: { backgroundColor: '#f8f9fa', padding: '0.75rem', borderRadius: '6px', marginBottom: '1rem' },
+  chatTitle: { display: 'inline-flex', alignItems: 'center', gap: '0.4rem' },
   chatStatus: { margin: '0.25rem 0 0 0', fontSize: '0.9rem', color: '#495057' },
   list: { listStyle: 'none', padding: 0, margin: 0 },
   listItem: {
    display: 'flex',
    justifyContent: 'space-between', // Исправлено: justifyContent вместо justify.content
+   alignItems: 'center',
+   gap: '0.75rem',
    padding: '0.5rem 0',
    borderBottom: '1px solid #f1f3f5',
   },

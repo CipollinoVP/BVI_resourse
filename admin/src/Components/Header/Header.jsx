@@ -2,10 +2,13 @@ import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import logo from '../../../logo_min.png'
+import { useUnread } from '../../context/UnreadContext';
+import UnreadBadge from '../common/UnreadBadge';
 
 const Header = () => {
   const { isAuthenticated, logout } = useAuth();
   const navigate = useNavigate();
+  const { total: unreadTotal } = useUnread();
 
   const handleAuthClick = () => {
     if (isAuthenticated) {
@@ -27,7 +30,13 @@ const Header = () => {
       <Link to="/" style={styles.logoLink}>
         <img src={logo} alt="На главную" style={styles.logo} />
       </Link>
-      <div>
+      <div style={styles.actions}>
+        {isAuthenticated && unreadTotal > 0 &&
+            <Link to="/" style={styles.unreadLink} title="Непрочитанные сообщения">
+                <span>Новые сообщения</span>
+                <UnreadBadge count={unreadTotal} />
+            </Link>
+        }
         {isAuthenticated &&
             <button onClick={handleCreateClick} style={styles.button}>
                 Создать пользователя
@@ -51,6 +60,20 @@ const styles = {
     padding: '1rem 2rem',
     backgroundColor: '#f8f9fa',
     borderBottom: '1px solid #e9ecef',
+  },
+  actions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '0.5rem',
+  },
+  unreadLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '0.4rem',
+    textDecoration: 'none',
+    color: '#212529',
+    fontWeight: 500,
+    marginRight: '0.5rem',
   },
   logoLink: {
     display: 'flex',

@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useParams } from 'react-router-dom';
 import apiClient from '../../config/client';
+import { useUnread } from '../../context/UnreadContext';
 
 const TeacherChat = () => {
   const { uuid: companionUuid } = useParams();
+  const { refreshUnread } = useUnread();
   const [messages, setMessages] = useState([]);
   const [inputText, setInputText] = useState('');
   const [editingMessage, setEditingMessage] = useState(null);
@@ -50,6 +52,9 @@ const TeacherChat = () => {
         if (pag?.last) {
           setLastId(pag.last);
         }
+
+        // Чат открыт — сервер сбросил непрочитанные, обновляем счётчики
+        refreshUnread();
       }
     } catch (err) {
       console.error("Ошибка при инициализации чата:", err);
@@ -57,10 +62,13 @@ const TeacherChat = () => {
   };
 
   const checkMonitoring = async () => {
+    // В пустом чате last ещё нет: запрашиваем без него, сервер вернёт
+    // полный список, как только появится первое сообщение.
     const currentLastId = lastIdRef.current;
-    if (!currentLastId) return;
     try {
-      const res = await apiClient.get(`admin/message_personal_monitoring/${companionUuid}/?last=${currentLastId}`);
+      const res = await apiClient.get(`admin/message_personal_monitoring/${companionUuid}/`, {
+        params: currentLastId ? { last: currentLastId } : {}
+      });
       if (res.data.message === "Update") {
         if (res.data.new_messages && res.data.new_messages.length > 0) {
           const formatted = res.data.new_messages.map((m) => ({
@@ -70,7 +78,10 @@ const TeacherChat = () => {
             created_at: m.created_at,
             is_read: m.is_read
           }));
-          setMessages((prev) => [...prev, ...formatted]);
+          setMessages((prev) => {
+            const existingIds = new Set(prev.map((m) => m.id));
+            return [...prev, ...formatted.filter((m) => !existingIds.has(m.id))];
+          });
           setLastId(res.data.last_id);
         } else if (res.data.messages) {
           const formatted = res.data.messages.map((m) => ({
@@ -135,11 +146,11 @@ const TeacherChat = () => {
       }
     } else {
       try {
-        const res = await apiClient.post(`admin/user_chat/${companionUuid}/`, { text: inputText });
+        await apiClient.post(`admin/user_chat/${companionUuid}/`, { text: inputText });
         setInputText('');
-        if (res.data?.data?.uuid) {
-          setLastId(res.data.data.uuid);
-        }
+        // lastId здесь не трогаем: мониторинг запросит всё, что появилось
+        // после предыдущего сообщения (или весь чат, если он был пуст),
+        // и сам выставит новый lastId.
         checkMonitoring();
       } catch (err) {
         console.error("Ошибка при отправке:", err);

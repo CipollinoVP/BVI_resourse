@@ -15,6 +15,13 @@ from django.contrib.auth import get_user_model
 from schedule.utils import get_schedule_for_week
 from .models import GroupModel, ClassModel, GroupLinkModel, MessageInGroupModel, ClassTeacherLink, \
     MessageInTeacherChatModel, AnnouncementInClass, DeletedMessage, TeacherTeacherMetaLink
+from .unread import (
+    get_group_chat_unread,
+    get_personal_unread_counts,
+    get_teacher_last_read,
+    mark_group_chat_read,
+    mark_personal_chat_read,
+)
 
 from django.db.models import Q
 
@@ -32,6 +39,9 @@ def get_info_about_users(group_local: GroupModel, group_global: ClassModel, type
     chat_dict = {"uuid": group_local.id}
     last_messages = MessageInGroupModel.objects.filter(group=group_local).order_by(
         '-created_at')
+    # Время последнего прочтения чата педагогом (None, если ещё не открывал)
+    last_time_check = get_teacher_last_read(user, group_global, type_group)
+    chat_dict["unread"] = get_group_chat_unread(user, group_local, last_time_check)
     if last_messages.count() == 0:
         chat_dict["surname"] = "NONE"
         chat_dict["last_teacher"] = False
@@ -44,23 +54,28 @@ def get_info_about_users(group_local: GroupModel, group_global: ClassModel, type
         chat_dict["last_teacher"] = (last_message.user == user)
         chat_dict["last_message"] = last_message.message
         chat_dict["last_time"] = last_message.created_at
-        if type_group == "parent":
-            last_time_check = ClassTeacherLink.objects.get(group=group_global, teacher=user).last_read_parent_chat
-        else:
-            last_time_check = ClassTeacherLink.objects.get(group=group_global, teacher=user).last_read_child_chat
         chat_dict["is_read"] = (
-                last_time_check is not None and
-                last_message.created_at <= last_time_check
+                last_message.user == user or (
+                    last_time_check is not None and
+                    last_message.created_at <= last_time_check
+                )
         )
 
     participants = CustomUser.objects.filter(group_links__group=group_local).prefetch_related('student_messages')
     participants_array = []
+    # Непрочитанные входящие в личных чатах: {id собеседника: количество}
+    personal_unread = get_personal_unread_counts(user)
     for participant in participants:
         participant_result = {
             "uuid": participant.id,
-            "surname": participant.bvi_view
+            "surname": participant.bvi_view,
+            "unread": personal_unread.get(participant.id, 0),
         }
-        last_messages = MessageInTeacherChatModel.objects.filter(user=participant).order_by('-created_at')
+        # Только переписка этого педагога с участником
+        last_messages = MessageInTeacherChatModel.objects.filter(
+            teacher=user,
+            user=participant,
+        ).order_by('-created_at')
         if last_messages.count() == 0:
             participant_result["last_message"] = None
             participant_result["last_teacher"] = None
@@ -267,6 +282,9 @@ class GetChatInfo(APIView):
         # Обновляем последнее прочитанное
         lib_read_chat[chat.id] = messages_result[0][0] if messages_result else None
 
+        # Пользователь зашёл в чат — сбрасываем его непрочитанные
+        mark_group_chat_read(user, chat)
+
         resp_dict["messages"] = messages_result
         resp_dict["pagination"] = pagination_dict
 
@@ -290,6 +308,8 @@ class GetChatInfo(APIView):
             "text": message.message
         }
         lib_read_chat[chat.id] = message.id
+        # Отправитель находится в чате — чат для него прочитан
+        mark_group_chat_read(user, chat)
         return Response({"data": data}, status=status.HTTP_201_CREATED)
 
 
@@ -419,9 +439,8 @@ class GetAdminPersonal(APIView):
                 "has_next": False,
             }
 
-        # Формируем результат и отмечаем прочитанные
+        # Формируем результат
         messages_result = []
-        unread_ids = []
 
         if is_user_teacher:
             for message in messages_list:
@@ -432,8 +451,6 @@ class GetAdminPersonal(APIView):
                     message.created_at,
                     message.is_read,
                 ])
-                if not message.is_read:
-                    unread_ids.append(message.id)
         else:
             for message in messages_list:
                 messages_result.append([
@@ -443,12 +460,12 @@ class GetAdminPersonal(APIView):
                     message.created_at,
                     message.is_read,
                 ])
-                if not message.is_read:
-                    unread_ids.append(message.id)
 
-        # Отмечаем все прочитанные одним запросом (вместо сохранения каждого в цикле)
-        if unread_ids:
-            MessageInTeacherChatModel.objects.filter(id__in=unread_ids).update(is_read=True)
+        # Пользователь зашёл в чат — отмечаем прочитанными все ВХОДЯЩИЕ
+        # сообщения чата (свои сообщения остаются непрочитанными, пока
+        # их не откроет собеседник).
+        # Здесь user — сторона teacher в чате, student — сторона user.
+        mark_personal_chat_read(user, student, reader_is_teacher=is_user_teacher)
 
         # Обновляем последнее прочитанное
         if messages_result:
@@ -927,6 +944,9 @@ class GetMessageMonitoringView(APIView):
         if unread_ids:
             MessageInGroupModel.objects.filter(id__in=unread_ids).update(is_read=True)
 
+        # Чат открыт, новые сообщения доставлены — они прочитаны
+        mark_group_chat_read(user, chat)
+
         data = {
             "message": "Update",
             "new_messages": messages_result,  # ✅ Только новые сообщения
@@ -990,6 +1010,9 @@ class GetMessageMonitoringView(APIView):
         # Отмечаем все прочитанные одним запросом
         if unread_ids:
             MessageInGroupModel.objects.filter(id__in=unread_ids).update(is_read=True)
+
+        # Чат открыт, сообщения доставлены — они прочитаны
+        mark_group_chat_read(user, chat)
 
         data = {
             "message": "Update",
@@ -1105,6 +1128,9 @@ class GetPersonalMessageMonitoringView(APIView):
                 "is_read": message.is_read,
             })
 
+        # Чат открыт — входящие сообщения прочитаны
+        mark_personal_chat_read(teacher, student, reader_is_teacher=teacher_status)
+
         data = {
             "message": "Update",
             "new_messages": messages_result,  # ✅ Только новые сообщения
@@ -1163,6 +1189,12 @@ class GetPersonalMessageMonitoringView(APIView):
                 "created_at": message.created_at.isoformat(),
                 "is_read": message.is_read,
             })
+
+        # Чат открыт — входящие сообщения прочитаны
+        if is_teacher:
+            mark_personal_chat_read(user, companion, reader_is_teacher=True)
+        else:
+            mark_personal_chat_read(companion, user, reader_is_teacher=False)
 
         data = {
             "message": "Update",

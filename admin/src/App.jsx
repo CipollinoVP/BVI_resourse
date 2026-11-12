@@ -7,6 +7,7 @@ import './App.css';
 import LoginPage from './Components/Login/LoginPage'
 import Header from './Components/Header/Header'
 import { AuthProvider } from './context/AuthContext';
+import { UnreadProvider } from './context/UnreadContext';
 import { ProtectedRoute } from './Components/ProtectedRoute'
 import ClassMain from './Components/ClassEdit/ClassMain'
 import AddParticipant from './Components/ClassEdit/AddParticipant'
@@ -24,6 +25,7 @@ function FrontApp() {
 
     return (<BrowserRouter>
               <AuthProvider>
+               <UnreadProvider>
                 <div className={styl}>
                     <Header/>
                     <div class='body'>
@@ -112,6 +114,7 @@ function FrontApp() {
                          </Routes>
                     </div>
                 </div>
+               </UnreadProvider>
               </AuthProvider>
             </BrowserRouter>
             )

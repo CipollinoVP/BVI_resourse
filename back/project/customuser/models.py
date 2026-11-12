@@ -26,7 +26,10 @@ class CustomUser(AbstractUser):
 
     @property
     def chat_view(self):
-        return f"{self.surname} {self.name[0]}."
+        if self.name:
+            return f"{self.surname} {self.name[0]}."
+        else:
+            return self.email
 
     @property
     def bvi_view(self):

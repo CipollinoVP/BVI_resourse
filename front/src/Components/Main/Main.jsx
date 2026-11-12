@@ -4,9 +4,12 @@ import { NavLink } from 'react-router-dom';
 import apiClient from '../../config/client';
 import { useAuth } from '../../context/AuthContext';
 import NewsList from '../News/NewsList';
+import { useUnread } from '../../context/UnreadContext';
+import UnreadBadge from '../common/UnreadBadge';
 
 const Main = () => {
   const { isAuthenticated } = useAuth();
+  const { group_chats: unreadGroups, personal_chats: unreadPersonal } = useUnread();
 
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -116,13 +119,14 @@ const Main = () => {
                 <button
                   key={item.class.uuid}
                   onClick={() => setActiveClassIdx(idx)}
-                  className={`px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
+                  className={`inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-xl transition-all whitespace-nowrap ${
                     activeClassIdx === idx
                       ? 'bg-primary text-primary-foreground shadow-xs'
                       : 'bg-muted hover:bg-muted/80 text-muted-foreground'
                   }`}
                 >
                   {item.class.name}
+                  <UnreadBadge count={unreadGroups?.[item.chat?.uuid]} />
                 </button>
               ))}
             </div>
@@ -153,6 +157,7 @@ const Main = () => {
                     className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground text-sm font-semibold rounded-xl hover:opacity-90 transition-opacity shadow-xs"
                   >
                     <span>Открыть чат</span>
+                    <UnreadBadge count={unreadGroups?.[currentClass.chat.uuid]} />
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" />
                     </svg>
@@ -214,7 +219,7 @@ const Main = () => {
                 </span>
               </h2>
 
-              <TeachersList teachers={teachers} />
+              <TeachersList teachers={teachers} unread={unreadPersonal} />
             </section>
 
           </div>
@@ -382,7 +387,7 @@ const AnnouncementsList = ({ announcements, emptyMessage, isGlobal = false }) =>
 // =============================================================
 // КОМПОНЕНТ: ПРЕПОДАВАТЕЛИ
 // =============================================================
-const TeachersList = ({ teachers }) => {
+const TeachersList = ({ teachers, unread = {} }) => {
   if (!teachers?.length) {
     return (
       <div className="p-4 rounded-xl bg-muted/40 text-center text-sm text-muted-foreground">
@@ -406,8 +411,11 @@ const TeachersList = ({ teachers }) => {
             <span className="truncate">{teacher.fio}</span>
           </div>
 
-          <span className="text-xs text-primary font-semibold group-hover:translate-x-0.5 transition-transform flex-shrink-0">
-            Написать →
+          <span className="flex items-center gap-2 flex-shrink-0">
+            <UnreadBadge count={unread?.[teacher.uuid]} />
+            <span className="text-xs text-primary font-semibold group-hover:translate-x-0.5 transition-transform">
+              Написать →
+            </span>
           </span>
         </NavLink>
       ))}

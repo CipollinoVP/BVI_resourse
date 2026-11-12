@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { Menu, Phone, LogIn, LogOut } from "lucide-react";
+import { Menu, Phone, LogIn, LogOut, MessageCircle } from "lucide-react";
 import { Link } from "../common/Link";
 import { WvcLogo } from "../common/WcvLogo";
 import { useNavigate } from 'react-router-dom';
@@ -27,6 +27,8 @@ import {
 } from "../common/sheet";
 import { cn } from "../common/utils";
 import { useAuth } from '../../context/AuthContext';
+import { useUnread } from '../../context/UnreadContext';
+import UnreadBadge from '../common/UnreadBadge';
 
 // Recursive submenu component for desktop navigation
 function DesktopNavSubmenu({ items }) {
@@ -178,6 +180,8 @@ function MobileMenuConsumer({ onClose }) {
 
 const Header = () => {
   const { isAuthenticated, logout } = useAuth();
+  const { total: unreadTotal } = useUnread();
+  const navigate = useNavigate();
   const [sheetOpen, setSheetOpen] = useState(false);
 
   const handleAuthClick = () => {
@@ -267,6 +271,24 @@ const Header = () => {
               <Phone className="size-3.5 text-primary" />
               <span>+7 (916) 006-60-21</span>
             </Link>
+
+            {isAuthenticated && (
+              <Link
+                to="/"
+                className="relative inline-flex size-10 items-center justify-center rounded-full text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                aria-label={
+                  unreadTotal > 0
+                    ? `Непрочитанных сообщений: ${unreadTotal}`
+                    : "Сообщения"
+                }
+              >
+                <MessageCircle className="size-5" />
+                <UnreadBadge
+                  count={unreadTotal}
+                  className="absolute -top-0.5 -right-0.5"
+                />
+              </Link>
+            )}
 
             {!isAuthenticated ? (
                 <Button

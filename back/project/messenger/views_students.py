@@ -23,6 +23,7 @@ from .views_teacher import (
     lib_read_teacher,
     PAGINATION_MESSENGER_SIZE,
 )
+from .unread import mark_personal_chat_read
 
 CustomUser = get_user_model()
 
@@ -230,8 +231,6 @@ class GetTeacherPersonalChatView(APIView):
 
         messages_result = []
 
-        unread_ids = []
-
         for message in messages_list:
 
             if message.from_teacher:
@@ -249,14 +248,13 @@ class GetTeacherPersonalChatView(APIView):
 
             messages_result.append(message_result)
 
-            # Помечаем сообщения педагога как прочитанные
-            if message.from_teacher and not message.is_read:
-                unread_ids.append(message.id)
-
-        if unread_ids:
-            MessageInTeacherChatModel.objects.filter(
-                id__in=unread_ids
-            ).update(is_read=True)
+        # Пользователь зашёл в чат — отмечаем прочитанными все
+        # сообщения педагога в этом чате, а не только последнюю пачку.
+        mark_personal_chat_read(
+            teacher,
+            user,
+            reader_is_teacher=False,
+        )
 
         # Сохраняем последнее прочитанное/увиденное сообщение
         # в общем словаре мониторинга.

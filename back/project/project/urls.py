@@ -6,6 +6,7 @@ from rest_framework_simplejwt.views import (
 )
 from customuser.views import ReturnTypeView
 from news.views import NewsListView
+from messenger.unread import UnreadCountersView
 
 
 urlpatterns = [
@@ -17,6 +18,8 @@ urlpatterns = [
     path('api/students/', include('messenger.url_students')),
     path('api/type/', ReturnTypeView.as_view(), name='return_type'),
     path('api/news/', NewsListView.as_view(), name='news-list'),
+    # Счётчики непрочитанных сообщений (педагоги, ученики, родители)
+    path('api/unread/', UnreadCountersView.as_view(), name='unread-counters'),
     # Djoser аутентификация
     path('api/auth/', include('djoser.urls')),
     path('api/auth/', include('djoser.urls.jwt')),
