@@ -54,6 +54,7 @@ INSTALLED_APPS = [
     'announcement',
     'mainapp',
     'news',
+    'photogallery',
     'corsheaders',
     'ckeditor',
     'ckeditor_uploader'
