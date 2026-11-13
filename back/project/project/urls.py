@@ -1,5 +1,7 @@
 from django.contrib import admin
-from django.urls import path, include
+from django.conf import settings
+from django.urls import path, include, re_path
+from django.views.static import serve
 from rest_framework_simplejwt.views import (
     TokenObtainPairView,
     TokenRefreshView,
@@ -18,6 +20,8 @@ urlpatterns = [
     path('api/students/', include('messenger.url_students')),
     path('api/type/', ReturnTypeView.as_view(), name='return_type'),
     path('api/news/', NewsListView.as_view(), name='news-list'),
+    # Галерея: рисунки и фото
+    path('api/gallery/', include('photogallery.urls')),
     # Счётчики непрочитанных сообщений (педагоги, ученики, родители)
     path('api/unread/', UnreadCountersView.as_view(), name='unread-counters'),
     # Djoser аутентификация

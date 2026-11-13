@@ -13,6 +13,9 @@ import StudentChat from './Components/Chat/StudentChat'
 import { ProtectedRoute } from './Components/ProtectedRoute'
 import NewsPage from './Components/News/NewsPage'
 import AnnouncementsPage from './Components/Announcemet/AnnouncementsPage'
+import DrawingsPage from './Components/Gallery/DrawingsPage'
+import AboutPage from './Components/About/AboutPage'
+import PhotosPage from './Components/Gallery/PhotosPage'
 
 
 function FrontApp() {
@@ -26,6 +29,9 @@ function FrontApp() {
                             <Route exact={true} path={"/"} element={<Main/>}/>
                             <Route element={<LoginPage/>} path="/login"/>
                             <Route element={<AnnouncementsPage/>} path="/AnnouncementsPage"/>
+                            <Route element={<AboutPage/>} path="/AboutPage"/>
+                            <Route element={<DrawingsPage/>} path="/DrawingsPage"/>
+                            <Route element={<PhotosPage/>} path="/PhotosPage"/>
                             <Route
                                 path="/group_chat/:uuid"
                                 element={

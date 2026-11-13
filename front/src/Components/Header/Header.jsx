@@ -74,12 +74,18 @@ function DesktopMenuConsumer() {
   const defaultItems = !isAuthenticated
   ? [
       { id: "home", label: "Главная", href: "/" },
+      { id: "about", label: "О нас", href: "/AboutPage" },
       { id: "announcements", label: "Объявления", href: "/AnnouncementsPage" },
+      { id: "drawings", label: "Рисунки", href: "/DrawingsPage" },
+      { id: "photos", label: "Фото", href: "/PhotosPage" },
     ]
   : [
       { id: "home", label: "Главная", href: "/" },
+      { id: "about", label: "О нас", href: "/AboutPage" },
       { id: "announcements", label: "Объявления", href: "/AnnouncementsPage" },
       { id: "news", label: "Новости", href: "/NewsPage" },
+      { id: "drawings", label: "Рисунки", href: "/DrawingsPage" },
+      { id: "photos", label: "Фото", href: "/PhotosPage" },
     ];
 
   const items = menuItems && menuItems.length > 0 ? menuItems : defaultItems;
@@ -158,15 +164,21 @@ function MobileMenuConsumer({ onClose }) {
     );
   }
 
-  const defaultItems = isAuthenticated
+  const defaultItems = !isAuthenticated
   ? [
       { id: "mob-home", label: "Главная", href: "/" },
+      { id: "mob-about", label: "О нас", href: "/AboutPage" },
       { id: "mob-announcements", label: "Объявления", href: "/AnnouncementsPage" },
+      { id: "mob-drawings", label: "Рисунки", href: "/DrawingsPage" },
+      { id: "mob-photos", label: "Фото", href: "/PhotosPage" },
     ]
   : [
       { id: "mob-home", label: "Главная", href: "/" },
+      { id: "mob-about", label: "О нас", href: "/AboutPage" },
       { id: "mob-announcements", label: "Объявления", href: "/AnnouncementsPage" },
-      { id: "mob-schedule", label: "Новости", href: "/NewsPage" }
+      { id: "mob-news", label: "Новости", href: "/NewsPage" },
+      { id: "mob-drawings", label: "Рисунки", href: "/DrawingsPage" },
+      { id: "mob-photos", label: "Фото", href: "/PhotosPage" },
     ];
 
   const items = menuItems && menuItems.length > 0 ? menuItems : defaultItems;
