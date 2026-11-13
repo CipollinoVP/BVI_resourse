@@ -8,7 +8,7 @@ const Photo = ({ src, alt }) => (
       src={mediaUrl(src)}
       alt={alt}
       loading="lazy"
-      className="w-full max-h-[520px] object-cover rounded-xl shadow-md border border-border"
+      className="w-full max-h-[1200px] object-cover rounded-xl shadow-md border border-border"
     />
   </figure>
 );
